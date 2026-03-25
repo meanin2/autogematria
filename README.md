@@ -81,6 +81,50 @@ print(h.gematria(GematriaTypes.MISPAR_GADOL))     # 646
 - **Search**: Pure Python, in-memory letter arrays for ELS
 - **Stats**: scipy for BH/FDR correction, custom null models
 
+## Full Report
+
+Generate a complete report for any Hebrew name:
+
+```bash
+python -m autogematria.tools.pipeline "משה"
+python -m autogematria.tools.pipeline "אברהם" Genesis
+```
+
+This runs all search methods + gematria across multiple methods, and for multi-word names searches each word separately too.
+
+## MCP Server
+
+Expose all tools for LLM agents via MCP:
+
+```bash
+pip install fastmcp
+python -m autogematria.tools.mcp_server
+# Server runs on http://127.0.0.1:8087/sse
+```
+
+**5 MCP tools:**
+- `search_name` — find a name using all methods
+- `lookup_gematria` — compute gematria + find equivalent words
+- `read_verse` — get a verse with word-by-word gematria
+- `inspect_els` — letter-by-letter ELS breakdown
+- `get_corpus_stats` — corpus summary
+
+## Autoresearch Loop
+
+The system includes an autonomous experiment loop for optimizing search parameters:
+
+```bash
+# Run benchmark on dev split
+python -m autogematria.autoresearch.harness --split dev
+
+# Run with custom config
+python -m autogematria.autoresearch.harness --config experiments/configs/baseline.json --split dev
+```
+
+**Ground truth**: 35 verified entries from Talmud (Chullin 139b), Weissmandl ELS findings, Baal HaTurim, Zohar, and traditional gematria equivalences. Includes negative controls (modern Hebrew words).
+
+**Baseline scores**: Train composite=0.534, Dev composite=0.327
+
 ## Project Structure
 
 ```
@@ -100,15 +144,19 @@ src/autogematria/
   stats/
     null_models.py    # Null corpus generators
     significance.py   # Empirical p-values, BH correction
+  autoresearch/
+    ground_truth.py   # Dataset loader, train/dev/holdout
+    scorer.py         # Composite scoring metric
+    harness.py        # Frozen benchmark runner
+    logger.py         # JSONL experiment logging
+  tools/
+    tool_functions.py # Typed Python functions for LLM tool-use
+    mcp_server.py     # FastMCP server (port 8087)
+    pipeline.py       # End-to-end "find name" report
 ```
 
 ## Tests
 
 ```bash
-pytest tests/ -v
+pytest tests/ -v  # 51 tests
 ```
-
-## Roadmap
-
-- **Phase 3**: Autoresearch loop — autonomous agent iterating on search strategies with a scoring metric
-- **Phase 4**: MCP server for LLM tool-use integration + sefaria-mcp for live commentary
