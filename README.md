@@ -53,6 +53,8 @@ ag-search "אברהם" Genesis  # Search within Genesis
 ```bash
 ag-verify "משה"
 ag-verify "משה גינדי" --max-results 30 --els-max-skip 800
+ag-verify "משה גינדי" --word-breakdown
+ag-verify "moshe gindi" --word-breakdown   # auto transliteration to Hebrew variants
 ```
 
 Optional GLM-5 audit (global Z.AI API):
@@ -60,10 +62,13 @@ Optional GLM-5 audit (global Z.AI API):
 ```bash
 export GLM_API_KEY="your-key"
 ag-verify "משה" --glm-audit --glm-model glm-5
+ag-verify "משה" --glm-audit --glm-model glm-5 --glm-strict-model
 ```
 
 Default GLM endpoint is `https://api.z.ai/api/paas/v4`. You can override with
 `GLM_BASE_URL` or `--glm-base-url` (for coding plan endpoint, etc.).
+When `--glm-strict-model` is not set, the client can fallback from `glm-5*` to
+`glm-4.7` automatically if the plan does not include GLM-5.
 
 ### Python API
 

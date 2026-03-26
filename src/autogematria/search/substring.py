@@ -31,43 +31,71 @@ class SubstringSearch(SearchMethod):
         results: list[SearchResult] = []
         conn = self._connect()
 
-        # 1. Within-word matches
+        # 1. Within-word matches (exact word matches first, then partial embeddings)
         book_filter = ""
-        params: list = [f"%{query_norm}%"]
+        exact_params: list = [query_norm]
+        partial_params: list = [f"%{query_norm}%", query_norm]
         if book:
             book_filter = "AND b.api_name = ? "
-            params.append(book)
+            exact_params.append(book)
+            partial_params.append(book)
 
-        rows = conn.execute(
+        exact_rows = conn.execute(
             "SELECT w.word_raw, w.word_normalized, w.absolute_word_index, "
             "b.api_name, c.chapter_num, v.verse_num, v.text_raw "
             "FROM words w "
             "JOIN verses v ON w.verse_id = v.verse_id "
             "JOIN chapters c ON v.chapter_id = c.chapter_id "
             "JOIN books b ON c.book_id = b.book_id "
-            f"WHERE w.word_normalized LIKE ? {book_filter}"
+            f"WHERE w.word_normalized = ? {book_filter}"
             "ORDER BY w.absolute_word_index "
             "LIMIT ?",
-            params + [max_results],
+            exact_params + [max_results],
         ).fetchall()
+
+        remaining = max_results - len(exact_rows)
+        partial_rows = []
+        if remaining > 0:
+            partial_rows = conn.execute(
+                "SELECT w.word_raw, w.word_normalized, w.absolute_word_index, "
+                "b.api_name, c.chapter_num, v.verse_num, v.text_raw "
+                "FROM words w "
+                "JOIN verses v ON w.verse_id = v.verse_id "
+                "JOIN chapters c ON v.chapter_id = c.chapter_id "
+                "JOIN books b ON c.book_id = b.book_id "
+                f"WHERE w.word_normalized LIKE ? AND w.word_normalized != ? {book_filter}"
+                "ORDER BY w.absolute_word_index "
+                "LIMIT ?",
+                partial_params + [remaining],
+            ).fetchall()
+
+        rows = list(exact_rows) + list(partial_rows)
 
         for r in rows:
             loc = self._location_for_word(conn, r["absolute_word_index"])
-            match_positions = []
-            start = 0
-            while True:
-                idx = r["word_normalized"].find(query_norm, start)
-                if idx == -1:
-                    break
-                match_positions.append(idx)
-                start = idx + 1
+            is_exact = r["word_normalized"] == query_norm
+            if is_exact:
+                match_positions = [0]
+            else:
+                match_positions = []
+                start = 0
+                while True:
+                    idx = r["word_normalized"].find(query_norm, start)
+                    if idx == -1:
+                        break
+                    match_positions.append(idx)
+                    start = idx + 1
             results.append(SearchResult(
                 method=self.name,
                 query=query,
                 found_text=r["word_raw"],
                 location_start=loc,
-                raw_score=0.0,  # direct match = best possible
-                params={"mode": "within_word", "match_positions": match_positions},
+                raw_score=0.0 if is_exact else 0.2,  # exact words outrank partial embeddings
+                params={
+                    "mode": "within_word",
+                    "match_positions": match_positions,
+                    "exact_word_match": is_exact,
+                },
                 context=r["text_raw"],
             ))
 

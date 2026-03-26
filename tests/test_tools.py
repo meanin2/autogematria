@@ -24,6 +24,8 @@ def test_find_name_moshe():
     assert result["query"] == "משה"
     assert all("verification" in r for r in result["results"])
     assert all("verified" in r["verification"] for r in result["results"])
+    assert all("confidence" in r for r in result["results"])
+    assert all("label" in r["confidence"] for r in result["results"])
 
 
 def test_find_name_with_book_filter():

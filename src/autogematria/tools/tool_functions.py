@@ -14,6 +14,7 @@ from hebrew.gematria import GematriaTypes
 
 from autogematria.config import DB_PATH
 from autogematria.normalize import normalize_hebrew, extract_letters, FinalsPolicy
+from autogematria.stats.reliability import score_search_result
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
 from autogematria.tools.verification import build_verification_payload
 
@@ -110,6 +111,10 @@ def find_name_in_torah(
     packed_results = []
     try:
         for r in results:
+            verification_payload = None
+            if verify_conn is not None:
+                verification_payload = build_verification_payload(verify_conn, r)
+
             result_payload = {
                 "method": r.method,
                 "location": {
@@ -127,8 +132,12 @@ def find_name_in_torah(
                 "params": r.params,
                 "context": r.context,
             }
-            if verify_conn is not None:
-                result_payload["verification"] = build_verification_payload(verify_conn, r)
+            if verification_payload is not None:
+                result_payload["verification"] = verification_payload
+                verified = bool(verification_payload.get("verified"))
+            else:
+                verified = False
+            result_payload["confidence"] = score_search_result(r, verified=verified)
             packed_results.append(result_payload)
     finally:
         if verify_conn is not None:
