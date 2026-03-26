@@ -19,6 +19,7 @@ ag-download = "autogematria.download:main"
 ag-ingest = "autogematria.ingest:main"
 ag-index = "autogematria.gematria_index:main"
 ag-search = "autogematria.search.unified:main"
+ag-verify = "autogematria.tools.verify_cli:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]

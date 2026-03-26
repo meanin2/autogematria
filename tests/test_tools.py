@@ -22,6 +22,8 @@ def test_find_name_moshe():
     result = find_name_in_torah("משה", max_results=5)
     assert result["total_results"] > 0
     assert result["query"] == "משה"
+    assert all("verification" in r for r in result["results"])
+    assert all("verified" in r["verification"] for r in result["results"])
 
 
 def test_find_name_with_book_filter():
@@ -42,6 +44,12 @@ def test_gematria_lookup_moshe():
 def test_gematria_lookup_elohim():
     result = gematria_lookup("אלהים")
     assert result["value"] == 86
+
+
+def test_gematria_lookup_invalid_method_falls_back():
+    result = gematria_lookup("משה", method="NOT_A_REAL_METHOD")
+    assert result["method"] == "MISPAR_HECHRACHI"
+    assert result["value"] == 345
 
 
 def test_get_verse_genesis_1_1():

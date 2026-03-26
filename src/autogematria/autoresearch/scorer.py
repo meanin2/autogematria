@@ -8,6 +8,12 @@ from typing import Any
 from autogematria.autoresearch.ground_truth import GroundTruthEntry
 from autogematria.search.base import SearchResult
 
+METHOD_MAP = {
+    "substring": "SUBSTRING",
+    "roshei_tevot": "ROSHEI_TEVOT",
+    "sofei_tevot": "SOFEI_TEVOT",
+}
+
 
 @dataclass
 class ScoreCard:
@@ -48,54 +54,146 @@ def evaluate_entry(
 
     Returns dict with: found (bool), rank (int or None), method_matched (str or None)
     """
-    results = results[:top_k]
+    def _match_loc(strict_result: SearchResult) -> bool:
+        if entry.book and strict_result.location_start.book != entry.book:
+            return False
+        if entry.chapter and strict_result.location_start.chapter != entry.chapter:
+            return False
+        if entry.verse and strict_result.location_start.verse != entry.verse:
+            return False
+        return True
 
-    for rank, r in enumerate(results, 1):
-        # For substring/roshei_tevot/sofei_tevot: check method matches
-        if entry.method in ("substring", "roshei_tevot", "sofei_tevot"):
-            method_map = {
-                "substring": "SUBSTRING",
-                "roshei_tevot": "ROSHEI_TEVOT",
-                "sofei_tevot": "SOFEI_TEVOT",
-            }
-            if r.method != method_map.get(entry.method):
+    def _match_els_loc(strict_result: SearchResult) -> bool:
+        candidates = [strict_result.location_start]
+        if strict_result.location_end:
+            candidates.append(strict_result.location_end)
+        for loc in candidates:
+            if entry.book and loc.book != entry.book:
                 continue
-            # For direct occurrences with known location, check location
-            if entry.book and r.location_start.book != entry.book:
+            if entry.chapter and loc.chapter != entry.chapter:
                 continue
-            if entry.verse and r.location_start.verse != entry.verse:
+            if entry.verse and loc.verse != entry.verse:
                 continue
-            return {"found": True, "rank": rank, "method_matched": r.method}
+            return True
+        return not any((entry.book, entry.chapter, entry.verse))
 
-        elif entry.method == "els":
-            if r.method != "ELS":
+    if entry.method in METHOD_MAP:
+        method_results = [r for r in results if r.method == METHOD_MAP[entry.method]]
+        for rank, result in enumerate(method_results[:top_k], 1):
+            if not _match_loc(result):
                 continue
-            # Check skip if specified
-            if "skip" in entry.params and r.params.get("skip") != entry.params["skip"]:
-                continue
-            if entry.book and r.location_start.book != entry.book:
-                continue
-            return {"found": True, "rank": rank, "method_matched": r.method}
+            expected_mode = entry.params.get("mode")
+            if expected_mode:
+                result_mode = result.params.get("mode")
+                if expected_mode == "phrase":
+                    if result_mode not in ("cross_word", "within_word"):
+                        continue
+                elif result_mode != expected_mode:
+                    continue
+            return {"found": True, "rank": rank, "method_matched": result.method}
+        return {"found": False, "rank": None, "method_matched": None}
 
-        elif entry.method == "gematria":
-            # Gematria entries are validated differently — check if value matches
-            return {"found": True, "rank": 1, "method_matched": "GEMATRIA"}
+    if entry.method == "els":
+        method_results = [r for r in results if r.method == "ELS"]
+        for rank, result in enumerate(method_results[:top_k], 1):
+            if not _match_els_loc(result):
+                continue
 
-    # For entries that should just "be found by any method"
-    if not entry.is_negative and results:
-        if entry.book:
-            for rank, r in enumerate(results, 1):
-                if r.location_start.book == entry.book:
-                    return {"found": True, "rank": rank, "method_matched": r.method}
-        elif results:
-            return {"found": True, "rank": 1, "method_matched": results[0].method}
+            skip = result.params.get("skip")
+            if skip is None:
+                continue
+            if "skip" in entry.params and abs(int(skip)) != abs(int(entry.params["skip"])):
+                continue
+            if "start_index" in entry.params and result.params.get("start_index") != entry.params["start_index"]:
+                continue
+            if "skip_range" in entry.params:
+                lo, hi = entry.params["skip_range"]
+                if not (int(lo) <= abs(int(skip)) <= int(hi)):
+                    continue
+
+            expected_direction = entry.params.get("direction")
+            if expected_direction == "forward" and int(skip) < 0:
+                continue
+            if expected_direction in ("backward", "forward_reversed") and int(skip) > 0:
+                continue
+
+            return {"found": True, "rank": rank, "method_matched": result.method}
+        return {"found": False, "rank": None, "method_matched": None}
 
     return {"found": False, "rank": None, "method_matched": None}
+
+
+def _evaluate_gematria_entry(
+    entry: GroundTruthEntry,
+    gematria_func,
+) -> dict[str, Any]:
+    if gematria_func is None:
+        return {"found": False, "rank": None, "method_matched": None}
+
+    method = entry.params.get("method", "MISPAR_HECHRACHI")
+    try:
+        data = gematria_func(entry.name, method=method, max_equivalents=500)
+    except Exception:
+        return {"found": False, "rank": None, "method_matched": None}
+
+    expected_value = entry.params.get("value")
+    if expected_value is not None and data.get("value") != expected_value:
+        return {"found": False, "rank": None, "method_matched": None}
+
+    expected_equivs = entry.params.get("equivalents") or []
+    if expected_equivs:
+        actual_equivs = {e["word"] for e in data.get("equivalents", [])}
+        if not any(eq in actual_equivs for eq in expected_equivs):
+            return {"found": False, "rank": None, "method_matched": None}
+
+    return {"found": True, "rank": 1, "method_matched": "GEMATRIA"}
+
+
+def _build_search_kwargs(entry: GroundTruthEntry, top_k: int) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"max_results_per_method": max(top_k, 100)}
+    if entry.book:
+        kwargs["book"] = entry.book
+
+    if entry.method in METHOD_MAP:
+        kwargs["only_method"] = entry.method
+        if entry.method == "substring":
+            mode = entry.params.get("mode")
+            if mode == "within_word":
+                kwargs["cross_word"] = False
+            elif mode == "cross_word":
+                kwargs["cross_word"] = True
+            elif mode == "phrase":
+                # Phrase matching is implemented via spaceless cross-word scans.
+                kwargs["cross_word"] = True
+        return kwargs
+
+    if entry.method == "els":
+        kwargs["only_method"] = "els"
+        if "skip" in entry.params:
+            skip = abs(int(entry.params["skip"]))
+            kwargs["els_min_skip"] = skip
+            kwargs["els_max_skip"] = skip
+        elif "skip_range" in entry.params:
+            lo, hi = entry.params["skip_range"]
+            kwargs["els_min_skip"] = int(lo)
+            kwargs["els_max_skip"] = int(hi)
+
+        expected_direction = entry.params.get("direction")
+        if expected_direction == "forward":
+            kwargs["els_direction"] = "forward"
+        elif expected_direction in ("backward", "forward_reversed"):
+            kwargs["els_direction"] = "backward"
+        else:
+            kwargs["els_direction"] = "both"
+        return kwargs
+
+    return kwargs
 
 
 def score(
     entries: list[GroundTruthEntry],
     search_func,
+    gematria_func=None,
     top_k: int = 20,
 ) -> ScoreCard:
     """Score a search function against ground truth entries.
@@ -103,6 +201,7 @@ def score(
     Args:
         entries: Ground truth entries to evaluate against
         search_func: Callable(name: str, **kwargs) -> list[SearchResult]
+        gematria_func: Optional callable(name, method, max_equivalents) -> dict
         top_k: How many results to consider for each entry
     """
     positives = [e for e in entries if not e.is_negative]
@@ -113,12 +212,12 @@ def score(
     details = []
 
     for entry in positives:
-        kwargs = {}
-        if entry.book:
-            kwargs["book"] = entry.book
-
-        results = search_func(entry.name, **kwargs)
-        eval_result = evaluate_entry(entry, results, top_k)
+        if entry.method == "gematria":
+            eval_result = _evaluate_gematria_entry(entry, gematria_func)
+        else:
+            kwargs = _build_search_kwargs(entry, top_k)
+            results = search_func(entry.name, **kwargs)
+            eval_result = evaluate_entry(entry, results, top_k)
 
         if eval_result["found"]:
             found_pos += 1
@@ -137,18 +236,21 @@ def score(
 
     found_neg = 0
     for entry in negatives:
-        results = search_func(entry.name)
-        # A negative control is "found" (bad) if any result appears
-        if results:
+        if entry.method == "gematria":
+            eval_result = _evaluate_gematria_entry(entry, gematria_func)
+        else:
+            kwargs = _build_search_kwargs(entry, top_k)
+            results = search_func(entry.name, **kwargs)
+            eval_result = evaluate_entry(entry, results, top_k)
+
+        if eval_result["found"]:
             found_neg += 1
         details.append({
             "name": entry.name,
             "english": entry.english,
             "method": entry.method,
             "is_negative": True,
-            "found": bool(results),
-            "rank": None,
-            "method_matched": results[0].method if results else None,
+            **eval_result,
         })
 
     recall = found_pos / len(positives) if positives else 0.0

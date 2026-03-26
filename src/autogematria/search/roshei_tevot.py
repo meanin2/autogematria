@@ -60,8 +60,11 @@ class RosheiTevotSearch(SearchMethod):
             loc_start = self._location_for_word(conn, abs_word_start)
             loc_end = self._location_for_word(conn, abs_word_end)
 
-            # Book filter
-            if book and loc_start.book != book:
+            # Disallow cross-book spans and enforce optional book filter.
+            if loc_start.book != loc_end.book:
+                start = idx + 1
+                continue
+            if book and (loc_start.book != book or loc_end.book != book):
                 start = idx + 1
                 continue
 
@@ -82,7 +85,12 @@ class RosheiTevotSearch(SearchMethod):
                 location_start=loc_start,
                 location_end=loc_end,
                 raw_score=len(query_norm),  # longer matches = better
-                params={"word_span": len(query_norm)},
+                params={
+                    "word_span": len(query_norm),
+                    "start_word_index": abs_word_start,
+                    "end_word_index": abs_word_end,
+                    "acrostic_type": "first_letters",
+                },
                 context=" ".join(words_in_match),
             ))
             start = idx + 1
@@ -145,7 +153,10 @@ class SofeiTevotSearch(SearchMethod):
             loc_start = self._location_for_word(conn, abs_word_start)
             loc_end = self._location_for_word(conn, abs_word_end)
 
-            if book and loc_start.book != book:
+            if loc_start.book != loc_end.book:
+                start = idx + 1
+                continue
+            if book and (loc_start.book != book or loc_end.book != book):
                 start = idx + 1
                 continue
 
@@ -165,7 +176,12 @@ class SofeiTevotSearch(SearchMethod):
                 location_start=loc_start,
                 location_end=loc_end,
                 raw_score=len(query_norm),
-                params={"word_span": len(query_norm)},
+                params={
+                    "word_span": len(query_norm),
+                    "start_word_index": abs_word_start,
+                    "end_word_index": abs_word_end,
+                    "acrostic_type": "last_letters",
+                },
                 context=" ".join(words_in_match),
             ))
             start = idx + 1

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from autogematria.config import DB_PATH
 from autogematria.search.base import SearchResult
@@ -20,6 +20,7 @@ class UnifiedSearchConfig:
     enable_els: bool = True
     els_min_skip: int = 1
     els_max_skip: int = 1000
+    els_direction: str = "both"
     els_use_fast: bool = True
     max_results_per_method: int = 50
     book: str | None = None
@@ -32,7 +33,7 @@ class UnifiedSearch:
         self.config = config or UnifiedSearchConfig()
         self.db_path = db_path
 
-    def search(self, query: str) -> list[SearchResult]:
+    def search(self, query: str, substring_cross_word: bool = True) -> list[SearchResult]:
         """Run all enabled methods, return merged results sorted by relevance."""
         results: list[SearchResult] = []
         cfg = self.config
@@ -40,7 +41,14 @@ class UnifiedSearch:
 
         if cfg.enable_substring:
             sub = SubstringSearch(self.db_path)
-            results.extend(sub.search(query, max_results=max_per, book=cfg.book))
+            results.extend(
+                sub.search(
+                    query,
+                    max_results=max_per,
+                    book=cfg.book,
+                    cross_word=substring_cross_word,
+                )
+            )
 
         if cfg.enable_roshei:
             rt = RosheiTevotSearch(self.db_path)
@@ -56,11 +64,13 @@ class UnifiedSearch:
                 results.extend(els.search_fast(
                     query, min_skip=cfg.els_min_skip, max_skip=cfg.els_max_skip,
                     book=cfg.book, max_results=max_per,
+                    direction=cfg.els_direction,
                 ))
             else:
                 results.extend(els.search(
                     query, min_skip=cfg.els_min_skip, max_skip=cfg.els_max_skip,
                     book=cfg.book, max_results=max_per,
+                    direction=cfg.els_direction,
                 ))
 
         # Sort: substring first (score 0), then roshei/sofei, then ELS by skip distance

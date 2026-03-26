@@ -9,10 +9,11 @@ import json
 import sys
 from pathlib import Path
 
-from autogematria.config import DB_PATH, DATA_DIR
+from autogematria.config import DB_PATH
 from autogematria.autoresearch.ground_truth import load_ground_truth, get_split
 from autogematria.autoresearch.scorer import score, ScoreCard
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
+from autogematria.tools.tool_functions import gematria_lookup
 
 
 DEFAULT_CONFIG = UnifiedSearchConfig(
@@ -22,6 +23,7 @@ DEFAULT_CONFIG = UnifiedSearchConfig(
     enable_els=True,
     els_min_skip=1,
     els_max_skip=100,
+    els_direction="both",
     els_use_fast=True,
     max_results_per_method=20,
 )
@@ -37,6 +39,7 @@ def run_benchmark(
     config: UnifiedSearchConfig | None = None,
     split: str = "dev",
     db_path: Path = DB_PATH,
+    top_k: int = 20,
 ) -> ScoreCard:
     """Run the full benchmark on a split and return a ScoreCard.
 
@@ -44,6 +47,7 @@ def run_benchmark(
         config: Search configuration. Defaults to DEFAULT_CONFIG.
         split: "train" or "dev". NEVER "holdout" during development.
         db_path: Path to the SQLite database.
+        top_k: Number of results considered by scorer per entry/method.
     """
     if split == "holdout":
         print("WARNING: Running on holdout split. This should only be done for final evaluation.")
@@ -56,33 +60,42 @@ def run_benchmark(
         print(f"No entries for split '{split}'")
         return ScoreCard(0, 0, 0, 0, 0, 0, 0, 0)
 
-    searcher = UnifiedSearch(config, db_path=db_path)
-
     def search_func(name: str, **kwargs) -> list:
-        # Temporarily override book filter if provided
-        if "book" in kwargs:
-            cfg_copy = UnifiedSearchConfig(
-                enable_substring=config.enable_substring,
-                enable_roshei=config.enable_roshei,
-                enable_sofei=config.enable_sofei,
-                enable_els=config.enable_els,
-                els_min_skip=config.els_min_skip,
-                els_max_skip=config.els_max_skip,
-                els_use_fast=config.els_use_fast,
-                max_results_per_method=config.max_results_per_method,
-                book=kwargs["book"],
-            )
-            s = UnifiedSearch(cfg_copy, db_path=db_path)
-            return s.search(name)
-        return searcher.search(name)
+        cfg_copy = UnifiedSearchConfig(
+            enable_substring=config.enable_substring,
+            enable_roshei=config.enable_roshei,
+            enable_sofei=config.enable_sofei,
+            enable_els=config.enable_els,
+            els_min_skip=kwargs.get("els_min_skip", config.els_min_skip),
+            els_max_skip=kwargs.get("els_max_skip", config.els_max_skip),
+            els_direction=kwargs.get("els_direction", config.els_direction),
+            els_use_fast=config.els_use_fast,
+            max_results_per_method=kwargs.get("max_results_per_method", config.max_results_per_method),
+            book=kwargs.get("book", config.book),
+        )
 
-    return score(split_entries, search_func)
+        only_method = kwargs.get("only_method")
+        if only_method:
+            cfg_copy.enable_substring = only_method == "substring"
+            cfg_copy.enable_roshei = only_method == "roshei_tevot"
+            cfg_copy.enable_sofei = only_method == "sofei_tevot"
+            cfg_copy.enable_els = only_method == "els"
+
+        s = UnifiedSearch(cfg_copy, db_path=db_path)
+        cross_word = kwargs.get("cross_word", True)
+        if cfg_copy.enable_substring and not (cfg_copy.enable_roshei or cfg_copy.enable_sofei or cfg_copy.enable_els):
+            # Preserve the scoring-time within-word/cross-word control.
+            return s.search(name, substring_cross_word=cross_word)
+        return s.search(name)
+
+    return score(split_entries, search_func, gematria_func=gematria_lookup, top_k=top_k)
 
 
 def main():
-    """CLI: python -m autogematria.autoresearch.harness [--config FILE] [--split SPLIT]"""
+    """CLI: python -m autogematria.autoresearch.harness [--config FILE] [--split SPLIT] [--top-k N]"""
     config = DEFAULT_CONFIG
     split = "dev"
+    top_k = 20
 
     args = sys.argv[1:]
     i = 0
@@ -93,11 +106,14 @@ def main():
         elif args[i] == "--split" and i + 1 < len(args):
             split = args[i + 1]
             i += 2
+        elif args[i] == "--top-k" and i + 1 < len(args):
+            top_k = int(args[i + 1])
+            i += 2
         else:
             i += 1
 
     print(f"Running benchmark on '{split}' split...")
-    sc = run_benchmark(config, split)
+    sc = run_benchmark(config, split, top_k=top_k)
 
     print(f"\n{'='*50}")
     print(f"  BENCHMARK RESULTS ({split} split)")
@@ -109,7 +125,7 @@ def main():
     print(f"{'='*50}")
 
     if sc.details:
-        print(f"\n  Details:")
+        print("\n  Details:")
         for d in sc.details:
             status = "FOUND" if d["found"] else "MISS"
             neg = " [NEG CTRL]" if d["is_negative"] else ""

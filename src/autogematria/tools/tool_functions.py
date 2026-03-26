@@ -15,6 +15,7 @@ from hebrew.gematria import GematriaTypes
 from autogematria.config import DB_PATH
 from autogematria.normalize import normalize_hebrew, extract_letters, FinalsPolicy
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
+from autogematria.tools.verification import build_verification_payload
 
 
 def _conn():
@@ -23,12 +24,53 @@ def _conn():
     return conn
 
 
+def _resolve_gematria_method(method: str) -> tuple[GematriaTypes, str]:
+    gtype = getattr(GematriaTypes, method, None)
+    if gtype is None:
+        gtype = GematriaTypes.MISPAR_HECHRACHI
+    return gtype, gtype.name
+
+
+def _diversify_results(results, max_results: int):
+    """Select a balanced top-N across methods in round-robin order."""
+    if not results:
+        return []
+
+    method_order = ["SUBSTRING", "ROSHEI_TEVOT", "SOFEI_TEVOT", "ELS"]
+    buckets: dict[str, list] = {m: [] for m in method_order}
+    extras: list = []
+    for result in results:
+        if result.method in buckets:
+            buckets[result.method].append(result)
+        else:
+            extras.append(result)
+
+    selected = []
+    while len(selected) < max_results:
+        advanced = False
+        for method in method_order:
+            bucket = buckets[method]
+            if bucket and len(selected) < max_results:
+                selected.append(bucket.pop(0))
+                advanced = True
+        if not advanced:
+            break
+
+    # Fill any remaining slots with non-standard methods (if present)
+    while len(selected) < max_results and extras:
+        selected.append(extras.pop(0))
+
+    return selected[:max_results]
+
+
 def find_name_in_torah(
     name: str,
     methods: list[str] | None = None,
     book: str | None = None,
     max_results: int = 20,
     els_max_skip: int = 500,
+    include_verification: bool = True,
+    diversify_methods: bool = True,
 ) -> dict[str, Any]:
     """Search for a Hebrew name across the Tanakh using all available methods.
 
@@ -39,6 +81,8 @@ def find_name_in_torah(
         book: Restrict search to a specific book (e.g. "Genesis", "Exodus")
         max_results: Maximum total results to return
         els_max_skip: Maximum ELS skip distance to search
+        include_verification: Include deterministic verification payload per result
+        diversify_methods: Round-robin across methods to avoid one-method saturation
 
     Returns:
         Dict with query info and ranked results list.
@@ -49,20 +93,24 @@ def find_name_in_torah(
         enable_sofei=methods is None or "sofei_tevot" in methods,
         enable_els=methods is None or "els" in methods,
         els_max_skip=els_max_skip,
+        els_direction="both",
         els_use_fast=True,
         max_results_per_method=max_results,
         book=book,
     )
     searcher = UnifiedSearch(cfg)
-    results = searcher.search(name)[:max_results]
+    raw_results = searcher.search(name)
+    results = (
+        _diversify_results(raw_results, max_results)
+        if diversify_methods
+        else raw_results[:max_results]
+    )
 
-    return {
-        "query": name,
-        "query_normalized": extract_letters(name, FinalsPolicy.NORMALIZE),
-        "book_filter": book,
-        "total_results": len(results),
-        "results": [
-            {
+    verify_conn = _conn() if include_verification else None
+    packed_results = []
+    try:
+        for r in results:
+            result_payload = {
                 "method": r.method,
                 "location": {
                     "book": r.location_start.book,
@@ -79,8 +127,19 @@ def find_name_in_torah(
                 "params": r.params,
                 "context": r.context,
             }
-            for r in results
-        ],
+            if verify_conn is not None:
+                result_payload["verification"] = build_verification_payload(verify_conn, r)
+            packed_results.append(result_payload)
+    finally:
+        if verify_conn is not None:
+            verify_conn.close()
+
+    return {
+        "query": name,
+        "query_normalized": extract_letters(name, FinalsPolicy.NORMALIZE),
+        "book_filter": book,
+        "total_results": len(results),
+        "results": packed_results,
     }
 
 
@@ -102,7 +161,7 @@ def gematria_lookup(
     # Compute gematria
     clean = normalize_hebrew(word, FinalsPolicy.PRESERVE)
     h = Hebrew(clean)
-    gtype = getattr(GematriaTypes, method, GematriaTypes.MISPAR_HECHRACHI)
+    gtype, resolved_method = _resolve_gematria_method(method)
     value = h.gematria(gtype)
 
     # Find equivalents in the corpus
@@ -113,7 +172,7 @@ def gematria_lookup(
         "JOIN gematria_methods gm ON wg.method_id = gm.method_id "
         "WHERE gm.method_name = ? AND wg.value = ? "
         "ORDER BY wf.frequency DESC LIMIT ?",
-        (method, value, max_equivalents),
+        (resolved_method, value, max_equivalents),
     ).fetchall()
 
     equivalents = []
@@ -143,7 +202,8 @@ def gematria_lookup(
     return {
         "word": word,
         "normalized": clean,
-        "method": method,
+        "method_requested": method,
+        "method": resolved_method,
         "value": value,
         "total_equivalents": len(equivalents),
         "equivalents": equivalents,
@@ -189,17 +249,13 @@ def get_verse(
 
     word_list = []
     for w in words:
-        # Get standard gematria
-        gem_row = conn.execute(
-            "SELECT wg.value FROM word_gematria wg "
-            "JOIN word_forms wf ON wg.form_id = wf.form_id "
-            "JOIN gematria_methods gm ON wg.method_id = gm.method_id "
-            "WHERE wf.form_raw = ? AND gm.method_name = 'MISPAR_HECHRACHI'",
-            (w["word_raw"],),
-        ).fetchone()
+        try:
+            gem_val = Hebrew(w["word_raw"]).gematria(GematriaTypes.MISPAR_HECHRACHI)
+        except Exception:
+            gem_val = None
         word_list.append({
             "word": w["word_raw"],
-            "gematria": gem_row["value"] if gem_row else None,
+            "gematria": gem_val,
             "absolute_word_index": w["absolute_word_index"],
         })
 

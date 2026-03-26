@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-from collections import Counter
 
 
 def letter_frequency_shuffle(text: str, seed: int | None = None) -> str:

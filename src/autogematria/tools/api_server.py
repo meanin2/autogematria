@@ -9,10 +9,9 @@ from __future__ import annotations
 import json
 import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from autogematria.tools.pipeline import find_name_full_report
-from autogematria.tools.tool_functions import gematria_lookup, get_verse
 
 
 PORT = 8077

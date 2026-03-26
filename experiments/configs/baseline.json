@@ -5,6 +5,7 @@
   "enable_els": true,
   "els_min_skip": 1,
   "els_max_skip": 100,
+  "els_direction": "both",
   "els_use_fast": true,
   "max_results_per_method": 20,
   "book": null

@@ -8,6 +8,7 @@ from autogematria.search.base import SearchMethod, SearchResult
 # Default skip range bounds
 DEFAULT_MIN_SKIP = 1
 DEFAULT_MAX_SKIP = 5000
+_VALID_DIRECTIONS = {"forward", "backward", "both"}
 
 
 class ELSSearch(SearchMethod):
@@ -42,6 +43,15 @@ class ELSSearch(SearchMethod):
         }
         conn.close()
 
+    @staticmethod
+    def _validate_search_args(min_skip: int, max_skip: int, direction: str) -> None:
+        if min_skip < 1:
+            raise ValueError("min_skip must be >= 1")
+        if max_skip < min_skip:
+            raise ValueError("max_skip must be >= min_skip")
+        if direction not in _VALID_DIRECTIONS:
+            raise ValueError(f"direction must be one of {_VALID_DIRECTIONS}")
+
     def search(
         self,
         query: str,
@@ -62,6 +72,7 @@ class ELSSearch(SearchMethod):
             direction: "forward" (positive skip), "backward" (negative), or "both"
         """
         self._load_letters()
+        self._validate_search_args(min_skip, max_skip, direction)
         query_norm = extract_letters(query, FinalsPolicy.NORMALIZE)
         if len(query_norm) < 2:
             return []
@@ -71,8 +82,10 @@ class ELSSearch(SearchMethod):
 
         # Determine search region
         start_offset = 0
-        end_offset = text_len
-        if book and self._book_offsets and book in self._book_offsets:
+        end_offset = text_len - 1
+        if book:
+            if not self._book_offsets or book not in self._book_offsets:
+                return []
             start_offset, end_offset = self._book_offsets[book]
 
         results: list[SearchResult] = []
@@ -82,7 +95,7 @@ class ELSSearch(SearchMethod):
         if direction in ("forward", "both"):
             skips_to_check.extend(range(min_skip, max_skip + 1))
         if direction in ("backward", "both"):
-            skips_to_check.extend(range(-max_skip, -min_skip + 1))
+            skips_to_check.extend(range(-min_skip, -max_skip - 1, -1))
 
         for skip in skips_to_check:
             if len(results) >= max_results:
@@ -97,10 +110,13 @@ class ELSSearch(SearchMethod):
             # For forward skip: try each offset in [start_offset, end_offset - span]
             if skip > 0:
                 search_start = start_offset
-                search_end = min(end_offset, text_len - span)
+                search_end = min(end_offset - span, text_len - span - 1)
             else:
                 search_start = start_offset + span
                 search_end = end_offset
+
+            if search_start > search_end:
+                continue
 
             for pos in range(search_start, search_end + 1):
                 if len(results) >= max_results:
@@ -127,7 +143,11 @@ class ELSSearch(SearchMethod):
                         location_start=loc_start,
                         location_end=loc_end,
                         raw_score=abs_skip,  # lower skip = "stronger" finding
-                        params={"skip": skip, "start_index": pos},
+                        params={
+                            "skip": skip,
+                            "start_index": pos,
+                            "direction": "forward" if skip > 0 else "backward",
+                        },
                         context=f"skip={skip}, span={loc_start.book} "
                                 f"{loc_start.chapter}:{loc_start.verse} → "
                                 f"{loc_end.book} {loc_end.chapter}:{loc_end.verse}",
@@ -145,14 +165,16 @@ class ELSSearch(SearchMethod):
         max_skip: int = DEFAULT_MAX_SKIP,
         book: str | None = None,
         max_results: int = 100,
+        direction: str = "both",  # "forward", "backward", "both"
     ) -> list[SearchResult]:
-        """Optimized forward-only ELS using skip-string + str.find().
+        """Optimized ELS using skip-string + str.find().
 
         For each skip S, builds S sub-strings (every S-th letter from offsets 0..S-1)
         and uses Python's built-in Boyer-Moore str.find() to locate the query.
-        Much faster than brute-force for large skip ranges.
+        Supports forward, backward, or both directions.
         """
         self._load_letters()
+        self._validate_search_args(min_skip, max_skip, direction)
         query_norm = extract_letters(query, FinalsPolicy.NORMALIZE)
         if len(query_norm) < 2:
             return []
@@ -161,6 +183,21 @@ class ELSSearch(SearchMethod):
         text_len = len(text)
         results: list[SearchResult] = []
         conn = self._connect()
+        book_bounds = None
+
+        if book:
+            if not self._book_offsets or book not in self._book_offsets:
+                conn.close()
+                return []
+            book_bounds = self._book_offsets[book]
+
+        search_specs: list[tuple[str, str, int]] = []
+        if direction in ("forward", "both"):
+            search_specs.append(("forward", query_norm, 1))
+        if direction in ("backward", "both"):
+            # Backward match for query Q with skip -S is equivalent to forward
+            # match of reversed(Q) with skip +S anchored at the low endpoint.
+            search_specs.append(("backward", query_norm[::-1], -1))
 
         for skip in range(min_skip, max_skip + 1):
             if len(results) >= max_results:
@@ -169,42 +206,66 @@ class ELSSearch(SearchMethod):
             if span >= text_len:
                 break  # larger skips won't fit either
 
-            # Build S skip-strings and search each
-            for offset in range(skip):
-                sub = text[offset::skip]
-                start = 0
-                while True:
-                    idx = sub.find(query_norm, start)
-                    if idx == -1:
-                        break
-                    # Convert back to absolute letter index
-                    abs_pos = offset + idx * skip
-                    abs_end = abs_pos + (len(query_norm) - 1) * skip
+            for direction_label, pattern, sign in search_specs:
+                if len(results) >= max_results:
+                    break
 
-                    # Book filter
-                    if book and self._book_offsets and book in self._book_offsets:
-                        bstart, bend = self._book_offsets[book]
-                        if abs_pos < bstart or abs_end > bend:
-                            start = idx + 1
-                            continue
-
-                    loc_start = self._location_for_letter(conn, abs_pos)
-                    loc_end = self._location_for_letter(conn, abs_end)
-                    results.append(SearchResult(
-                        method=self.name,
-                        query=query,
-                        found_text=query_norm,
-                        location_start=loc_start,
-                        location_end=loc_end,
-                        raw_score=skip,
-                        params={"skip": skip, "start_index": abs_pos},
-                        context=f"skip={skip}, span={loc_start.book} "
-                                f"{loc_start.chapter}:{loc_start.verse} → "
-                                f"{loc_end.book} {loc_end.chapter}:{loc_end.verse}",
-                    ))
+                # Build S skip-strings and search each
+                for offset in range(skip):
                     if len(results) >= max_results:
                         break
-                    start = idx + 1
+                    sub = text[offset::skip]
+                    start = 0
+                    while True:
+                        idx = sub.find(pattern, start)
+                        if idx == -1:
+                            break
+
+                        anchor = offset + idx * skip
+                        if sign > 0:
+                            start_index = anchor
+                            end_index = anchor + (len(query_norm) - 1) * skip
+                            signed_skip = skip
+                        else:
+                            start_index = anchor + (len(query_norm) - 1) * skip
+                            end_index = anchor
+                            signed_skip = -skip
+
+                        span_start = min(start_index, end_index)
+                        span_end = max(start_index, end_index)
+
+                        # Book filter
+                        if book_bounds:
+                            bstart, bend = book_bounds
+                            if span_start < bstart or span_end > bend:
+                                start = idx + 1
+                                continue
+
+                        loc_start = self._location_for_letter(conn, span_start)
+                        loc_end = self._location_for_letter(conn, span_end)
+                        found = "".join(
+                            text[start_index + i * signed_skip] for i in range(len(query_norm))
+                        )
+                        results.append(SearchResult(
+                            method=self.name,
+                            query=query,
+                            found_text=found,
+                            location_start=loc_start,
+                            location_end=loc_end,
+                            raw_score=skip,
+                            params={
+                                "skip": signed_skip,
+                                "start_index": start_index,
+                                "direction": direction_label,
+                            },
+                            context=f"skip={signed_skip}, span={loc_start.book} "
+                                    f"{loc_start.chapter}:{loc_start.verse} → "
+                                    f"{loc_end.book} {loc_end.chapter}:{loc_end.verse}",
+                        ))
+                        if len(results) >= max_results:
+                            start = idx + 1
+                            break
+                        start = idx + 1
 
         conn.close()
         results.sort(key=lambda r: r.raw_score)

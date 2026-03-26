@@ -27,6 +27,7 @@ def search_name(
     book: str | None = None,
     max_results: int = 20,
     els_max_skip: int = 500,
+    include_verification: bool = True,
 ) -> dict:
     """Search for a Hebrew name across the Tanakh using all available methods.
 
@@ -39,8 +40,9 @@ def search_name(
         book: Optional book filter (e.g. "Genesis", "Exodus", "Psalms")
         max_results: Maximum results to return (default 20)
         els_max_skip: Maximum ELS skip distance (default 500)
+        include_verification: Include deterministic proof payload per result
     """
-    return find_name_in_torah(name, methods, book, max_results, els_max_skip)
+    return find_name_in_torah(name, methods, book, max_results, els_max_skip, include_verification)
 
 
 @mcp.tool()

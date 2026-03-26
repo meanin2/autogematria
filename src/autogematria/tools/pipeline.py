@@ -103,7 +103,6 @@ def find_name_full_report(
 
 def main():
     """CLI for quick full reports."""
-    import json
     import sys
 
     if len(sys.argv) < 2:
@@ -125,16 +124,20 @@ def main():
     print(f"  Methods: {report['summary']['methods_with_hits']}")
 
     if report["gematria"]:
-        print(f"\n  Gematria:")
+        print("\n  Gematria:")
         for method, info in report["gematria"].items():
             equivs = ", ".join(info["equivalents"][:3])
             print(f"    {method}: {info['value']} (also: {equivs})")
 
     if report["search_results"]["results"]:
-        print(f"\n  Top findings:")
+        print("\n  Top findings:")
         for i, r in enumerate(report["search_results"]["results"][:10], 1):
             loc = r["location"]
             print(f"    {i}. [{r['method']}] {loc['book']} {loc['chapter']}:{loc['verse']}")
+            verification = r.get("verification", {})
+            if "verified" in verification:
+                status = "PASS" if verification["verified"] else "FAIL"
+                print(f"       verification: {status}")
             if r.get("context"):
                 ctx = r["context"][:60] + "..." if len(r["context"]) > 60 else r["context"]
                 print(f"       {ctx}")

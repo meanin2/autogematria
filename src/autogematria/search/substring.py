@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from autogematria.normalize import normalize_hebrew, extract_letters, FinalsPolicy
-from autogematria.search.base import Location, SearchMethod, SearchResult
+from autogematria.normalize import extract_letters, FinalsPolicy
+from autogematria.search.base import SearchMethod, SearchResult
 
 
 class SubstringSearch(SearchMethod):
@@ -47,19 +47,27 @@ class SubstringSearch(SearchMethod):
             "JOIN books b ON c.book_id = b.book_id "
             f"WHERE w.word_normalized LIKE ? {book_filter}"
             "ORDER BY w.absolute_word_index "
-            f"LIMIT {max_results}",
-            params,
+            "LIMIT ?",
+            params + [max_results],
         ).fetchall()
 
         for r in rows:
             loc = self._location_for_word(conn, r["absolute_word_index"])
+            match_positions = []
+            start = 0
+            while True:
+                idx = r["word_normalized"].find(query_norm, start)
+                if idx == -1:
+                    break
+                match_positions.append(idx)
+                start = idx + 1
             results.append(SearchResult(
                 method=self.name,
                 query=query,
                 found_text=r["word_raw"],
                 location_start=loc,
                 raw_score=0.0,  # direct match = best possible
-                params={"mode": "within_word"},
+                params={"mode": "within_word", "match_positions": match_positions},
                 context=r["text_raw"],
             ))
 
@@ -88,22 +96,46 @@ class SubstringSearch(SearchMethod):
         for v in verses:
             if len(results) >= max_results:
                 break
+            word_rows = conn.execute(
+                "SELECT absolute_word_index, word_normalized "
+                "FROM words WHERE verse_id = ? ORDER BY word_index_in_verse",
+                (v["verse_id"],),
+            ).fetchall()
+            char_to_word_idx: list[int] = []
+            for w in word_rows:
+                char_to_word_idx.extend([w["absolute_word_index"]] * len(w["word_normalized"]))
+
             spaceless = v["text_normalized"].replace(" ", "")
             pos = spaceless.find(query_norm)
             while pos != -1 and len(results) < max_results:
-                # Check this isn't a within-word match we already found
-                loc = Location(
-                    book=v["api_name"],
-                    chapter=v["chapter_num"],
-                    verse=v["verse_num"],
-                )
+                end_pos = pos + len(query_norm) - 1
+                if end_pos >= len(char_to_word_idx):
+                    pos = spaceless.find(query_norm, pos + 1)
+                    continue
+
+                start_abs_word_idx = char_to_word_idx[pos]
+                end_abs_word_idx = char_to_word_idx[end_pos]
+                # Skip within-word spans; those are handled in mode=within_word.
+                if start_abs_word_idx == end_abs_word_idx:
+                    pos = spaceless.find(query_norm, pos + 1)
+                    continue
+
+                loc_start = self._location_for_word(conn, start_abs_word_idx)
+                loc_end = self._location_for_word(conn, end_abs_word_idx)
                 results.append(SearchResult(
                     method=self.name,
                     query=query,
                     found_text=query_norm,
-                    location_start=loc,
+                    location_start=loc_start,
+                    location_end=loc_end,
                     raw_score=0.5,  # cross-word slightly weaker than within-word
-                    params={"mode": "cross_word", "position_in_verse": pos},
+                    params={
+                        "mode": "cross_word",
+                        "position_in_verse": pos,
+                        "end_position_in_verse": end_pos,
+                        "start_word_index": start_abs_word_idx,
+                        "end_word_index": end_abs_word_idx,
+                    },
                     context=v["text_raw"],
                 ))
                 pos = spaceless.find(query_norm, pos + 1)

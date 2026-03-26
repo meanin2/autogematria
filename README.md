@@ -48,6 +48,23 @@ ag-search "משה"          # Search all of Tanakh
 ag-search "אברהם" Genesis  # Search within Genesis
 ```
 
+### Verify findings (deterministic + optional GLM audit)
+
+```bash
+ag-verify "משה"
+ag-verify "משה גינדי" --max-results 30 --els-max-skip 800
+```
+
+Optional GLM-5 audit (global Z.AI API):
+
+```bash
+export GLM_API_KEY="your-key"
+ag-verify "משה" --glm-audit --glm-model glm-5
+```
+
+Default GLM endpoint is `https://api.z.ai/api/paas/v4`. You can override with
+`GLM_BASE_URL` or `--glm-base-url` (for coding plan endpoint, etc.).
+
 ### Python API
 
 ```python
@@ -61,6 +78,26 @@ for r in results[:10]:
     print(f"[{r.method}] {r.location_start.book} {r.location_start.chapter}:{r.location_start.verse}")
     print(f"  {r.context}")
 ```
+
+### Manual Verification
+
+`find_name_in_torah()` / `search_name` now attach a deterministic `verification` payload to every
+result, including:
+- whether the match re-check passed (`verified`)
+- exact indices used (letter indices for ELS, word spans for acrostics/cross-word)
+- reconstructed sequence (`expected_sequence` vs `actual_sequence`)
+
+For ELS results, use `skip` + `start_index` directly with:
+
+```python
+from autogematria.tools.tool_functions import els_detail
+
+detail = els_detail("תורה", skip=50, start_index=5)
+print(detail["letters"])
+```
+
+This gives a letter-by-letter trace with absolute indices and references so any finding can be
+audited manually.
 
 ### Gematria lookup
 
@@ -119,6 +156,9 @@ python -m autogematria.autoresearch.harness --split dev
 
 # Run with custom config
 python -m autogematria.autoresearch.harness --config experiments/configs/baseline.json --split dev
+
+# Increase ranking depth per-entry during benchmarking
+python -m autogematria.autoresearch.harness --split dev --top-k 200
 ```
 
 **Ground truth**: 35 verified entries from Talmud (Chullin 139b), Weissmandl ELS findings, Baal HaTurim, Zohar, and traditional gematria equivalences. Includes negative controls (modern Hebrew words).
@@ -151,6 +191,7 @@ src/autogematria/
     logger.py         # JSONL experiment logging
   tools/
     tool_functions.py # Typed Python functions for LLM tool-use
+    verification.py   # Deterministic per-finding manual verification payloads
     mcp_server.py     # FastMCP server (port 8087)
     pipeline.py       # End-to-end "find name" report
 ```

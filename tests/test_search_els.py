@@ -48,3 +48,15 @@ def test_els_query_normalization(els):
     results_clean = els.search_fast("משה", min_skip=1, max_skip=10, max_results=5)
     results_nikkud = els.search_fast("מֹשֶׁה", min_skip=1, max_skip=10, max_results=5)
     assert len(results_clean) == len(results_nikkud)
+
+
+def test_els_backward_direction(els):
+    """Backward direction should return negative skips."""
+    results = els.search_fast("משה", min_skip=1, max_skip=10, direction="backward", max_results=5)
+    assert len(results) > 0
+    assert all(r.params["skip"] < 0 for r in results)
+
+
+def test_els_unknown_book_returns_empty(els):
+    results = els.search_fast("משה", min_skip=1, max_skip=10, book="NotABook", max_results=5)
+    assert results == []
