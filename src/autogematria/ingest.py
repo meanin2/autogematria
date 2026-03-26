@@ -12,6 +12,16 @@ from autogematria.schema import create_schema
 
 def ingest_all(corpus_dir: Path = CORPUS_DIR, db_path: Path = DB_PATH) -> None:
     """Read all 39 JSON files and populate every table."""
+    # Rebuild from scratch so repeated `ag-ingest` runs are deterministic.
+    if db_path.exists():
+        db_path.unlink()
+    wal_path = db_path.with_name(f"{db_path.name}-wal")
+    shm_path = db_path.with_name(f"{db_path.name}-shm")
+    if wal_path.exists():
+        wal_path.unlink()
+    if shm_path.exists():
+        shm_path.unlink()
+
     conn = create_schema(db_path)
     absolute_word_idx = 0
     absolute_letter_idx = 0

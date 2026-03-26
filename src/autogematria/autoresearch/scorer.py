@@ -27,6 +27,7 @@ class ScoreCard:
     found_negatives: int
     composite: float               # THE scalar to optimize
     details: list[dict[str, Any]] | None = None  # per-entry results
+    task_metrics: dict[str, dict[str, float | int]] | None = None
 
 
 def compute_composite(
@@ -153,6 +154,8 @@ def _build_search_kwargs(entry: GroundTruthEntry, top_k: int) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"max_results_per_method": max(top_k, 100)}
     if entry.book:
         kwargs["book"] = entry.book
+    if entry.corpus_scope:
+        kwargs["corpus_scope"] = entry.corpus_scope
 
     if entry.method in METHOD_MAP:
         kwargs["only_method"] = entry.method
@@ -210,8 +213,22 @@ def score(
     found_pos = 0
     reciprocal_ranks = []
     details = []
+    task_stats: dict[str, dict[str, float]] = {}
+
+    def _task_bucket(task: str) -> dict[str, float]:
+        if task not in task_stats:
+            task_stats[task] = {
+                "positives": 0.0,
+                "negatives": 0.0,
+                "found_positives": 0.0,
+                "found_negatives": 0.0,
+                "rr_sum": 0.0,
+            }
+        return task_stats[task]
 
     for entry in positives:
+        bucket = _task_bucket(entry.task)
+        bucket["positives"] += 1
         if entry.method == "gematria":
             eval_result = _evaluate_gematria_entry(entry, gematria_func)
         else:
@@ -221,8 +238,10 @@ def score(
 
         if eval_result["found"]:
             found_pos += 1
+            bucket["found_positives"] += 1
             if eval_result["rank"]:
                 reciprocal_ranks.append(1.0 / eval_result["rank"])
+                bucket["rr_sum"] += 1.0 / eval_result["rank"]
         else:
             reciprocal_ranks.append(0.0)
 
@@ -230,12 +249,16 @@ def score(
             "name": entry.name,
             "english": entry.english,
             "method": entry.method,
+            "task": entry.task,
+            "track": entry.track,
             "is_negative": False,
             **eval_result,
         })
 
     found_neg = 0
     for entry in negatives:
+        bucket = _task_bucket(entry.task)
+        bucket["negatives"] += 1
         if entry.method == "gematria":
             eval_result = _evaluate_gematria_entry(entry, gematria_func)
         else:
@@ -245,10 +268,13 @@ def score(
 
         if eval_result["found"]:
             found_neg += 1
+            bucket["found_negatives"] += 1
         details.append({
             "name": entry.name,
             "english": entry.english,
             "method": entry.method,
+            "task": entry.task,
+            "track": entry.track,
             "is_negative": True,
             **eval_result,
         })
@@ -256,6 +282,26 @@ def score(
     recall = found_pos / len(positives) if positives else 0.0
     mrr = sum(reciprocal_ranks) / len(reciprocal_ranks) if reciprocal_ranks else 0.0
     fpr = found_neg / len(negatives) if negatives else 0.0
+
+    per_task: dict[str, dict[str, float | int]] = {}
+    for task, data in task_stats.items():
+        pos = int(data["positives"])
+        neg = int(data["negatives"])
+        found_task_pos = int(data["found_positives"])
+        found_task_neg = int(data["found_negatives"])
+        recall_task = found_task_pos / pos if pos else 0.0
+        mrr_task = data["rr_sum"] / pos if pos else 0.0
+        fpr_task = found_task_neg / neg if neg else 0.0
+        per_task[task] = {
+            "total_positives": pos,
+            "total_negatives": neg,
+            "found_positives": found_task_pos,
+            "found_negatives": found_task_neg,
+            "recall": round(recall_task, 4),
+            "mrr": round(mrr_task, 4),
+            "fpr": round(fpr_task, 4),
+            "composite": round(compute_composite(recall_task, mrr_task, fpr_task), 4),
+        }
 
     return ScoreCard(
         recall=recall,
@@ -267,4 +313,5 @@ def score(
         found_negatives=found_neg,
         composite=compute_composite(recall, mrr, fpr),
         details=details,
+        task_metrics=per_task,
     )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from autogematria.config import TORAH_BOOKS, normalize_corpus_scope
 from autogematria.normalize import extract_letters, FinalsPolicy
 from autogematria.search.base import SearchMethod, SearchResult
 
@@ -21,6 +22,7 @@ class ELSSearch(SearchMethod):
         super().__init__(db_path=db_path or DB_PATH)
         self._letter_string: str | None = None
         self._book_offsets: dict[str, tuple[int, int]] | None = None
+        self._scope_offsets: dict[str, tuple[int, int]] | None = None
 
     def _load_letters(self):
         """Load the entire letter array as a single string. ~1.2MB in memory."""
@@ -41,6 +43,19 @@ class ELSSearch(SearchMethod):
         self._book_offsets = {
             r["api_name"]: (r[1], r[2]) for r in book_ranges
         }
+
+        scope_ranges = conn.execute(
+            "SELECT b.category, MIN(l.absolute_letter_index), MAX(l.absolute_letter_index) "
+            "FROM letters l JOIN books b ON l.book_id = b.book_id "
+            "GROUP BY b.category"
+        ).fetchall()
+        scope_offsets: dict[str, tuple[int, int]] = {}
+        for row in scope_ranges:
+            category = str(row["category"]).lower()
+            if category == "torah":
+                scope_offsets["torah"] = (int(row[1]), int(row[2]))
+        scope_offsets["tanakh"] = (0, len(self._letter_string) - 1)
+        self._scope_offsets = scope_offsets
         conn.close()
 
     @staticmethod
@@ -60,6 +75,7 @@ class ELSSearch(SearchMethod):
         book: str | None = None,
         max_results: int = 100,
         direction: str = "both",  # "forward", "backward", "both"
+        corpus_scope: str = "tanakh",
     ) -> list[SearchResult]:
         """Find all ELS occurrences of query within the skip range.
 
@@ -76,6 +92,9 @@ class ELSSearch(SearchMethod):
         query_norm = extract_letters(query, FinalsPolicy.NORMALIZE)
         if len(query_norm) < 2:
             return []
+        scope = normalize_corpus_scope(corpus_scope)
+        if book and scope == "torah" and book not in TORAH_BOOKS:
+            return []
 
         text = self._letter_string
         text_len = len(text)
@@ -83,6 +102,8 @@ class ELSSearch(SearchMethod):
         # Determine search region
         start_offset = 0
         end_offset = text_len - 1
+        if self._scope_offsets and scope in self._scope_offsets:
+            start_offset, end_offset = self._scope_offsets[scope]
         if book:
             if not self._book_offsets or book not in self._book_offsets:
                 return []
@@ -166,6 +187,7 @@ class ELSSearch(SearchMethod):
         book: str | None = None,
         max_results: int = 100,
         direction: str = "both",  # "forward", "backward", "both"
+        corpus_scope: str = "tanakh",
     ) -> list[SearchResult]:
         """Optimized ELS using skip-string + str.find().
 
@@ -178,12 +200,16 @@ class ELSSearch(SearchMethod):
         query_norm = extract_letters(query, FinalsPolicy.NORMALIZE)
         if len(query_norm) < 2:
             return []
+        scope = normalize_corpus_scope(corpus_scope)
+        if book and scope == "torah" and book not in TORAH_BOOKS:
+            return []
 
         text = self._letter_string
         text_len = len(text)
         results: list[SearchResult] = []
         conn = self._connect()
         book_bounds = None
+        scope_bounds = self._scope_offsets.get(scope) if self._scope_offsets else None
 
         if book:
             if not self._book_offsets or book not in self._book_offsets:
@@ -238,6 +264,11 @@ class ELSSearch(SearchMethod):
                         if book_bounds:
                             bstart, bend = book_bounds
                             if span_start < bstart or span_end > bend:
+                                start = idx + 1
+                                continue
+                        elif scope_bounds:
+                            sstart, send = scope_bounds
+                            if span_start < sstart or span_end > send:
                                 start = idx + 1
                                 continue
 

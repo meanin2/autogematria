@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from autogematria.config import DB_PATH
+from autogematria.config import DB_PATH, normalize_corpus_scope
 from autogematria.search.base import SearchResult
 from autogematria.search.els import ELSSearch
 from autogematria.search.roshei_tevot import RosheiTevotSearch, SofeiTevotSearch
@@ -24,6 +24,7 @@ class UnifiedSearchConfig:
     els_use_fast: bool = True
     max_results_per_method: int = 50
     book: str | None = None
+    corpus_scope: str = "torah"  # "torah" (default) or "tanakh"
 
 
 class UnifiedSearch:
@@ -38,6 +39,7 @@ class UnifiedSearch:
         results: list[SearchResult] = []
         cfg = self.config
         max_per = cfg.max_results_per_method
+        scope = normalize_corpus_scope(cfg.corpus_scope)
 
         if cfg.enable_substring:
             sub = SubstringSearch(self.db_path)
@@ -47,16 +49,17 @@ class UnifiedSearch:
                     max_results=max_per,
                     book=cfg.book,
                     cross_word=substring_cross_word,
+                    corpus_scope=scope,
                 )
             )
 
         if cfg.enable_roshei:
             rt = RosheiTevotSearch(self.db_path)
-            results.extend(rt.search(query, max_results=max_per, book=cfg.book))
+            results.extend(rt.search(query, max_results=max_per, book=cfg.book, corpus_scope=scope))
 
         if cfg.enable_sofei:
             st = SofeiTevotSearch(self.db_path)
-            results.extend(st.search(query, max_results=max_per, book=cfg.book))
+            results.extend(st.search(query, max_results=max_per, book=cfg.book, corpus_scope=scope))
 
         if cfg.enable_els:
             els = ELSSearch(self.db_path)
@@ -65,12 +68,14 @@ class UnifiedSearch:
                     query, min_skip=cfg.els_min_skip, max_skip=cfg.els_max_skip,
                     book=cfg.book, max_results=max_per,
                     direction=cfg.els_direction,
+                    corpus_scope=scope,
                 ))
             else:
                 results.extend(els.search(
                     query, min_skip=cfg.els_min_skip, max_skip=cfg.els_max_skip,
                     book=cfg.book, max_results=max_per,
                     direction=cfg.els_direction,
+                    corpus_scope=scope,
                 ))
 
         # Sort: substring first (score 0), then roshei/sofei, then ELS by skip distance
@@ -86,19 +91,28 @@ def _sort_key(r: SearchResult) -> tuple[int, float]:
 
 def main():
     """CLI entry point for quick searches."""
-    import sys
-    if len(sys.argv) < 2:
-        print("Usage: ag-search <hebrew_name> [book]")
-        sys.exit(1)
+    import argparse
 
-    query = sys.argv[1]
-    book = sys.argv[2] if len(sys.argv) > 2 else None
+    parser = argparse.ArgumentParser(prog="ag-search")
+    parser.add_argument("query", help="Hebrew query text")
+    parser.add_argument("book", nargs="?", default=None, help="Optional specific book filter")
+    parser.add_argument(
+        "--corpus-scope",
+        choices=("torah", "tanakh"),
+        default="torah",
+        help="Search scope: Torah-only (default) or full Tanakh",
+    )
+    args = parser.parse_args()
 
-    cfg = UnifiedSearchConfig(book=book, els_max_skip=500)
+    cfg = UnifiedSearchConfig(
+        book=args.book,
+        els_max_skip=500,
+        corpus_scope=args.corpus_scope,
+    )
     searcher = UnifiedSearch(cfg)
-    results = searcher.search(query)
+    results = searcher.search(args.query)
 
-    print(f"\nFound {len(results)} results for '{query}':\n")
+    print(f"\nFound {len(results)} results for '{args.query}' in scope '{args.corpus_scope}':\n")
     for i, r in enumerate(results[:30], 1):
         print(f"  {i:3}. [{r.method}] {r.found_text}")
         print(f"       {r.location_start.book} {r.location_start.chapter}:{r.location_start.verse}")

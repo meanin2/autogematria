@@ -60,3 +60,17 @@ TANAKH_BOOKS: list[tuple[str, str, str, int]] = [
 
 TOTAL_BOOKS = len(TANAKH_BOOKS)  # 39
 TOTAL_CHAPTERS = sum(ch for _, _, _, ch in TANAKH_BOOKS)  # 929
+
+TORAH_BOOKS = tuple(name for name, _, category, _ in TANAKH_BOOKS if category == "Torah")
+BOOK_CATEGORY_BY_NAME = {name: category for name, _, category, _ in TANAKH_BOOKS}
+VALID_CORPUS_SCOPES = {"torah", "tanakh"}
+
+
+def normalize_corpus_scope(corpus_scope: str | None) -> str:
+    """Return a normalized corpus scope string."""
+    if corpus_scope is None:
+        return "torah"
+    scope = corpus_scope.strip().lower()
+    if scope not in VALID_CORPUS_SCOPES:
+        raise ValueError(f"corpus_scope must be one of {sorted(VALID_CORPUS_SCOPES)}")
+    return scope

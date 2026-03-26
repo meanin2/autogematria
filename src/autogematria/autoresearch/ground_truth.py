@@ -9,7 +9,8 @@ from typing import Any
 
 from autogematria.config import DATA_DIR
 
-GROUND_TRUTH_PATH = DATA_DIR / "ground_truth" / "known_findings.jsonl"
+GROUND_TRUTH_PATH = DATA_DIR / "ground_truth" / "known_findings_v2.jsonl"
+LEGACY_GROUND_TRUTH_PATH = DATA_DIR / "ground_truth" / "known_findings.jsonl"
 
 
 @dataclass
@@ -24,12 +25,19 @@ class GroundTruthEntry:
     source: str
     difficulty: str                      # "easy", "medium", "hard"
     split: str                           # "train", "dev", "holdout"
+    entry_id: str = ""
+    track: str = "source_backed_positive"  # source-backed, expected, hard-negative, trivial-negative, holdout
+    task: str = "unknown"  # direct_substring, hint_substring, acrostic, els, gematria, full_name
+    corpus_scope: str | None = None  # "torah", "tanakh", or None (infer from book)
     notes: str = ""
     is_negative: bool = False            # True for negative controls
 
 
 def load_ground_truth(path: Path = GROUND_TRUTH_PATH) -> list[GroundTruthEntry]:
     """Load all entries from the JSONL file."""
+    if not path.exists():
+        path = LEGACY_GROUND_TRUTH_PATH
+
     entries = []
     with path.open("r", encoding="utf-8") as f:
         for line in f:
@@ -38,6 +46,7 @@ def load_ground_truth(path: Path = GROUND_TRUTH_PATH) -> list[GroundTruthEntry]:
                 continue
             d = json.loads(line)
             entry = GroundTruthEntry(
+                entry_id=str(d.get("entry_id") or d.get("id") or ""),
                 name=d["name"],
                 english=d["english"],
                 method=d["method"],
@@ -48,9 +57,11 @@ def load_ground_truth(path: Path = GROUND_TRUTH_PATH) -> list[GroundTruthEntry]:
                 source=d.get("source", ""),
                 difficulty=d.get("difficulty", "medium"),
                 split=d.get("split", "train"),
+                track=d.get("track", "source_backed_positive"),
+                task=d.get("task", d.get("method", "unknown")),
+                corpus_scope=d.get("corpus_scope"),
                 notes=d.get("notes", ""),
-                is_negative="negative" in d.get("source", "").lower()
-                            or "negative" in d.get("notes", "").lower(),
+                is_negative=bool(d.get("is_negative", False)),
             )
             entries.append(entry)
     return entries

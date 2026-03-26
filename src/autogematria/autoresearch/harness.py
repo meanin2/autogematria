@@ -26,6 +26,7 @@ DEFAULT_CONFIG = UnifiedSearchConfig(
     els_direction="both",
     els_use_fast=True,
     max_results_per_method=20,
+    corpus_scope="torah",
 )
 
 
@@ -72,6 +73,7 @@ def run_benchmark(
             els_use_fast=config.els_use_fast,
             max_results_per_method=kwargs.get("max_results_per_method", config.max_results_per_method),
             book=kwargs.get("book", config.book),
+            corpus_scope=kwargs.get("corpus_scope", config.corpus_scope),
         )
 
         only_method = kwargs.get("only_method")
@@ -131,6 +133,14 @@ def main():
             neg = " [NEG CTRL]" if d["is_negative"] else ""
             rank = f" (rank {d['rank']})" if d.get("rank") else ""
             print(f"    {status}{neg} {d['english']} ({d['name']}){rank}")
+    if sc.task_metrics:
+        print("\n  By task:")
+        for task, metrics in sorted(sc.task_metrics.items()):
+            print(
+                f"    {task}: recall={metrics['recall']:.4f} "
+                f"mrr={metrics['mrr']:.4f} fpr={metrics['fpr']:.4f} "
+                f"composite={metrics['composite']:.4f}"
+            )
 
     return sc
 

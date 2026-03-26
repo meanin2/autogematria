@@ -34,6 +34,7 @@ class GematriaHandler(BaseHTTPRequestHandler):
             name = body.get("name", "")
             book = body.get("book")
             els_max_skip = body.get("els_max_skip", 500)
+            corpus_scope = body.get("corpus_scope", "torah")
 
             if not name:
                 self._json_response({"error": "name is required"}, 400)
@@ -41,7 +42,11 @@ class GematriaHandler(BaseHTTPRequestHandler):
 
             try:
                 report = find_name_full_report(
-                    name, book=book, els_max_skip=els_max_skip, max_results=15,
+                    name,
+                    book=book,
+                    corpus_scope=corpus_scope,
+                    els_max_skip=els_max_skip,
+                    max_results=15,
                 )
                 # Format a human-readable summary
                 summary = format_report(report)

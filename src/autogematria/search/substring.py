@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from autogematria.config import normalize_corpus_scope
 from autogematria.normalize import extract_letters, FinalsPolicy
 from autogematria.search.base import SearchMethod, SearchResult
 
@@ -17,6 +18,7 @@ class SubstringSearch(SearchMethod):
         max_results: int = 100,
         book: str | None = None,
         cross_word: bool = True,
+        corpus_scope: str = "tanakh",
     ) -> list[SearchResult]:
         """Search for query as a substring in the text.
 
@@ -27,16 +29,17 @@ class SubstringSearch(SearchMethod):
         query_norm = extract_letters(query, FinalsPolicy.NORMALIZE)
         if len(query_norm) < 2:
             return []
+        scope = normalize_corpus_scope(corpus_scope)
 
         results: list[SearchResult] = []
         conn = self._connect()
 
         # 1. Within-word matches (exact word matches first, then partial embeddings)
-        book_filter = ""
+        scope_filter = "AND b.category = 'Torah' " if scope == "torah" else ""
+        book_filter = "AND b.api_name = ? " if book else ""
         exact_params: list = [query_norm]
         partial_params: list = [f"%{query_norm}%", query_norm]
         if book:
-            book_filter = "AND b.api_name = ? "
             exact_params.append(book)
             partial_params.append(book)
 
@@ -47,7 +50,7 @@ class SubstringSearch(SearchMethod):
             "JOIN verses v ON w.verse_id = v.verse_id "
             "JOIN chapters c ON v.chapter_id = c.chapter_id "
             "JOIN books b ON c.book_id = b.book_id "
-            f"WHERE w.word_normalized = ? {book_filter}"
+                f"WHERE w.word_normalized = ? {scope_filter}{book_filter}"
             "ORDER BY w.absolute_word_index "
             "LIMIT ?",
             exact_params + [max_results],
@@ -63,7 +66,7 @@ class SubstringSearch(SearchMethod):
                 "JOIN verses v ON w.verse_id = v.verse_id "
                 "JOIN chapters c ON v.chapter_id = c.chapter_id "
                 "JOIN books b ON c.book_id = b.book_id "
-                f"WHERE w.word_normalized LIKE ? AND w.word_normalized != ? {book_filter}"
+                f"WHERE w.word_normalized LIKE ? AND w.word_normalized != ? {scope_filter}{book_filter}"
                 "ORDER BY w.absolute_word_index "
                 "LIMIT ?",
                 partial_params + [remaining],
@@ -105,10 +108,13 @@ class SubstringSearch(SearchMethod):
 
         # 2. Cross-word matches: search verse text with spaces removed
         params2: list = []
-        book_filter2 = ""
+        where_parts: list[str] = []
+        if scope == "torah":
+            where_parts.append("b.category = 'Torah'")
         if book:
-            book_filter2 = "WHERE b.api_name = ? "
+            where_parts.append("b.api_name = ?")
             params2.append(book)
+        where_sql = f"WHERE {' AND '.join(where_parts)} " if where_parts else ""
 
         verses = conn.execute(
             "SELECT v.verse_id, v.text_normalized, v.text_raw, "
@@ -116,7 +122,7 @@ class SubstringSearch(SearchMethod):
             "FROM verses v "
             "JOIN chapters c ON v.chapter_id = c.chapter_id "
             "JOIN books b ON c.book_id = b.book_id "
-            f"{book_filter2}"
+            f"{where_sql}"
             "ORDER BY v.verse_id",
             params2,
         ).fetchall()

@@ -20,6 +20,7 @@ REPORT_GEMATRIA_METHODS = [
 def find_name_full_report(
     name: str,
     book: str | None = None,
+    corpus_scope: str = "torah",
     els_max_skip: int = 500,
     max_results: int = 20,
 ) -> dict:
@@ -42,7 +43,11 @@ def find_name_full_report(
 
     # Run search across all methods
     search_results = find_name_in_torah(
-        name, book=book, max_results=max_results, els_max_skip=els_max_skip,
+        name,
+        book=book,
+        max_results=max_results,
+        els_max_skip=els_max_skip,
+        corpus_scope=corpus_scope,
     )
 
     # Also search each word of the name separately if multi-word
@@ -50,7 +55,13 @@ def find_name_full_report(
     word_results = {}
     if len(words) > 1:
         for w in words:
-            wr = find_name_in_torah(w, book=book, max_results=10, els_max_skip=els_max_skip)
+            wr = find_name_in_torah(
+                w,
+                book=book,
+                max_results=10,
+                els_max_skip=els_max_skip,
+                corpus_scope=corpus_scope,
+            )
             word_results[w] = wr
 
     # Compute gematria across multiple methods
@@ -89,6 +100,7 @@ def find_name_full_report(
         "name_preserved": name_preserved,
         "name_normalized": name_normalized,
         "book_filter": book,
+        "corpus_scope": corpus_scope,
         "search_results": search_results,
         "word_results": word_results if word_results else None,
         "gematria": gematria_info,
@@ -97,6 +109,7 @@ def find_name_full_report(
             "total_findings": search_results["total_results"],
             "methods_with_hits": method_counts,
             "standard_gematria": gematria_info.get("MISPAR_HECHRACHI", {}).get("value"),
+            "final_verdict": (search_results.get("final_verdict") or {}).get("verdict"),
         },
     }
 
@@ -119,9 +132,11 @@ def main():
     print(f"  FULL REPORT: {report['name']}")
     print(f"{'='*60}")
     print(f"  Normalized: {report['name_normalized']}")
+    print(f"  Corpus scope: {report.get('corpus_scope')}")
     print(f"  Standard gematria: {report['summary']['standard_gematria']}")
     print(f"  Total findings: {report['summary']['total_findings']}")
     print(f"  Methods: {report['summary']['methods_with_hits']}")
+    print(f"  Final verdict: {report['summary'].get('final_verdict')}")
 
     if report["gematria"]:
         print("\n  Gematria:")

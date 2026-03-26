@@ -44,8 +44,9 @@ ag-index    # Precompute all gematria values
 ### Search for a name
 
 ```bash
-ag-search "משה"          # Search all of Tanakh
-ag-search "אברהם" Genesis  # Search within Genesis
+ag-search "משה"                         # Default scope: Torah/Chumash only
+ag-search "אברהם" Genesis               # Restrict to one book
+ag-search "משה" --corpus-scope tanakh   # Optional: full Tanakh scope
 ```
 
 ### Verify findings (deterministic + optional GLM audit)
@@ -55,6 +56,7 @@ ag-verify "משה"
 ag-verify "משה גינדי" --max-results 30 --els-max-skip 800
 ag-verify "משה גינדי" --word-breakdown
 ag-verify "moshe gindi" --word-breakdown   # auto transliteration to Hebrew variants
+ag-verify "moshe gindi" --corpus-scope tanakh
 ```
 
 Optional GLM-5 audit (global Z.AI API):
@@ -123,6 +125,21 @@ print(h.gematria(GematriaTypes.MISPAR_GADOL))     # 646
 - **Search**: Pure Python, in-memory letter arrays for ELS
 - **Stats**: scipy for BH/FDR correction, custom null models
 
+### Conservative verdict contract
+
+The search pipeline now separates:
+
+1. candidate generation
+2. evidence scoring/calibration
+3. report formatting
+
+and emits an explicit final verdict:
+
+- `strong_evidence`
+- `moderate_evidence`
+- `weak_evidence`
+- `no_convincing_evidence` (explicit abstain)
+
 ## Full Report
 
 Generate a complete report for any Hebrew name:
@@ -164,11 +181,17 @@ python -m autogematria.autoresearch.harness --config experiments/configs/baselin
 
 # Increase ranking depth per-entry during benchmarking
 python -m autogematria.autoresearch.harness --split dev --top-k 200
+
+# Rebuild v2 eval set (tracks/tasks + explicit negatives + generated hard negatives)
+python -m autogematria.autoresearch.dataset_rebuild --hard-negatives 40
+
+# Run quick benchmark ablations
+python -m autogematria.autoresearch.ablation --split dev
 ```
 
-**Ground truth**: 35 verified entries from Talmud (Chullin 139b), Weissmandl ELS findings, Baal HaTurim, Zohar, and traditional gematria equivalences. Includes negative controls (modern Hebrew words).
+**Ground truth (v2)**: dataset tracks are split into `source_backed_positive`, `expected_but_unverified`, `hard_negative`, `trivial_negative`, and `holdout`, with explicit `is_negative` labels and per-entry task tags (`direct_substring`, `hint_substring`, `acrostic`, `els`, `gematria`, `multi_word_full_name`).
 
-**Baseline scores**: Train composite=0.534, Dev composite=0.327
+**Current baseline scores**: Train composite=0.678, Dev composite=0.639
 
 ## Project Structure
 
@@ -193,7 +216,13 @@ src/autogematria/
     ground_truth.py   # Dataset loader, train/dev/holdout
     scorer.py         # Composite scoring metric
     harness.py        # Frozen benchmark runner
+    dataset_rebuild.py # Legacy->v2 dataset migration + labeling
+    hard_negatives.py  # Reproducible hard-negative generator
+    ablation.py        # Quick benchmark ablation runs
     logger.py         # JSONL experiment logging
+  scoring/
+    calibrated.py     # Deterministic per-result evidence scoring
+    verdict.py        # Full-name conservative verdict combiner
   tools/
     tool_functions.py # Typed Python functions for LLM tool-use
     verification.py   # Deterministic per-finding manual verification payloads

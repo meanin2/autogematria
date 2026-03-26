@@ -30,12 +30,15 @@ def _build_summary(data: dict[str, Any]) -> dict[str, Any]:
         "query": data.get("query"),
         "query_normalized": data.get("query_normalized"),
         "book_filter": data.get("book_filter"),
+        "corpus_scope": data.get("corpus_scope"),
         "total_results": total,
         "verified_results": verified,
         "unverified_results": total - verified,
         "verified_ratio": (verified / total) if total else 0.0,
         "by_method": by_method,
         "confidence_labels": confidence_counts,
+        "final_verdict": (data.get("final_verdict") or {}).get("verdict"),
+        "final_confidence": (data.get("final_verdict") or {}).get("confidence_score"),
     }
 
 
@@ -50,6 +53,7 @@ def _summarize_word_breakdown(
     max_results: int,
     els_max_skip: int,
     book: str | None,
+    corpus_scope: str,
 ) -> dict[str, Any]:
     words = query.split()
     if len(words) <= 1:
@@ -63,34 +67,49 @@ def _summarize_word_breakdown(
             max_results=max_results,
             els_max_skip=els_max_skip,
             include_verification=True,
+            corpus_scope=corpus_scope,
         )
         best_label = "invalid"
         best_score = 0.0
+        best_is_direct_exact = False
         for row in data.get("results", []):
             conf = row.get("confidence") or {}
             label = str(conf.get("label", "invalid"))
             score = float(conf.get("score", 0.0) or 0.0)
+            features = conf.get("features") or {}
+            is_direct_exact = (
+                row.get("method") == "SUBSTRING"
+                and features.get("match_type") == "exact_word"
+            )
             if _confidence_rank(label) > _confidence_rank(best_label):
                 best_label = label
                 best_score = score
+                best_is_direct_exact = is_direct_exact
             elif label == best_label and score > best_score:
                 best_score = score
+                best_is_direct_exact = is_direct_exact
 
         per_word[word] = {
             "total_results": data.get("total_results", 0),
             "best_label": best_label,
             "best_score": round(best_score, 4),
+            "best_is_direct_exact": best_is_direct_exact,
             "top_result": data.get("results", [None])[0],
         }
 
-    labels = [v["best_label"] for v in per_word.values()]
-    has_high_or_medium = any(lbl in ("high", "medium") for lbl in labels)
-    all_high_or_medium = all(lbl in ("high", "medium") for lbl in labels)
+    has_direct_strong = any(
+        v["best_label"] in ("high", "medium") and v["best_is_direct_exact"]
+        for v in per_word.values()
+    )
+    all_direct_strong = all(
+        v["best_label"] in ("high", "medium") and v["best_is_direct_exact"]
+        for v in per_word.values()
+    )
     any_hits = any(v["total_results"] > 0 for v in per_word.values())
 
-    if all_high_or_medium:
+    if all_direct_strong:
         overall = "strong_word_evidence"
-    elif has_high_or_medium:
+    elif has_direct_strong:
         overall = "partial_word_evidence"
     elif any_hits:
         overall = "weak_word_evidence"
@@ -128,6 +147,7 @@ def _resolve_query_with_variants(
     book: str | None,
     max_results: int,
     els_max_skip: int,
+    corpus_scope: str,
 ) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
     if not auto_hebrew or contains_hebrew(query):
         data = find_name_in_torah(
@@ -136,6 +156,7 @@ def _resolve_query_with_variants(
             max_results=max_results,
             els_max_skip=els_max_skip,
             include_verification=True,
+            corpus_scope=corpus_scope,
         )
         return query, data, []
 
@@ -157,6 +178,7 @@ def _resolve_query_with_variants(
             max_results=max_results,
             els_max_skip=els_max_skip,
             include_verification=True,
+            corpus_scope=corpus_scope,
         )
         if idx == 0:
             first_data = data
@@ -201,6 +223,7 @@ def _resolve_query_with_variants(
             max_results=max_results,
             els_max_skip=els_max_skip,
             include_verification=True,
+            corpus_scope=corpus_scope,
         )
     return best_variant, best_data, variant_rows
 
@@ -249,6 +272,7 @@ def _ask_glm_for_audit(
 def _print_human(data: dict[str, Any], summary: dict[str, Any], max_rows: int) -> None:
     print(f"\nQuery: {summary['query']}")
     print(f"Normalized: {summary['query_normalized']}")
+    print(f"Corpus scope: {summary.get('corpus_scope', 'torah')}")
     if summary["book_filter"]:
         print(f"Book filter: {summary['book_filter']}")
     print(f"Results: {summary['total_results']}")
@@ -260,6 +284,23 @@ def _print_human(data: dict[str, Any], summary: dict[str, Any], max_rows: int) -
     print(f"By method: {summary['by_method']}")
     if summary["confidence_labels"]:
         print(f"Confidence labels: {summary['confidence_labels']}")
+    if summary.get("final_verdict"):
+        print(
+            f"Final verdict: {summary['final_verdict']} "
+            f"(confidence={summary.get('final_confidence')})"
+        )
+    strongest = (data.get("final_verdict") or {}).get("strongest_evidence")
+    if strongest:
+        print(
+            "Strongest evidence: "
+            f"{strongest.get('method')} {strongest.get('ref')} "
+            f"score={strongest.get('score')}"
+        )
+    discounted = (data.get("final_verdict") or {}).get("discounted_findings") or []
+    if discounted:
+        print("Discounted as weak/random-like:")
+        for item in discounted[:4]:
+            print(f"  - {item}")
 
     print("\nTop findings:")
     for i, item in enumerate(data.get("results", [])[:max_rows], 1):
@@ -321,6 +362,12 @@ def main() -> None:
         default=True,
         help="Auto-generate Hebrew variants for Latin-script names",
     )
+    parser.add_argument(
+        "--corpus-scope",
+        choices=("torah", "tanakh"),
+        default="torah",
+        help="Search scope: Torah/Chumash only (default) or full Tanakh",
+    )
     args = parser.parse_args()
 
     resolved_query, data, query_variants = _resolve_query_with_variants(
@@ -329,6 +376,7 @@ def main() -> None:
         book=args.book,
         max_results=args.max_results,
         els_max_skip=args.els_max_skip,
+        corpus_scope=args.corpus_scope,
     )
     summary = _build_summary(data)
     word_breakdown = _summarize_word_breakdown(
@@ -336,6 +384,7 @@ def main() -> None:
         max_results=min(args.max_results, 10),
         els_max_skip=args.els_max_skip,
         book=args.book,
+        corpus_scope=args.corpus_scope,
     ) if args.word_breakdown else {"enabled": False}
 
     glm_audit = None

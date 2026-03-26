@@ -12,9 +12,10 @@ from typing import Any
 from hebrew import Hebrew
 from hebrew.gematria import GematriaTypes
 
-from autogematria.config import DB_PATH
+from autogematria.config import DB_PATH, normalize_corpus_scope
 from autogematria.normalize import normalize_hebrew, extract_letters, FinalsPolicy
-from autogematria.stats.reliability import score_search_result
+from autogematria.scoring.calibrated import CandidateEvidence, score_candidates
+from autogematria.scoring.verdict import aggregate_full_name_verdict, build_token_support
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
 from autogematria.tools.verification import build_verification_payload
 
@@ -32,6 +33,12 @@ def _resolve_gematria_method(method: str) -> tuple[GematriaTypes, str]:
     return gtype, gtype.name
 
 
+def _result_method(row: Any) -> str:
+    if isinstance(row, dict):
+        return str(row.get("method", "?"))
+    return str(getattr(row, "method", "?"))
+
+
 def _diversify_results(results, max_results: int):
     """Select a balanced top-N across methods in round-robin order."""
     if not results:
@@ -41,8 +48,9 @@ def _diversify_results(results, max_results: int):
     buckets: dict[str, list] = {m: [] for m in method_order}
     extras: list = []
     for result in results:
-        if result.method in buckets:
-            buckets[result.method].append(result)
+        method = _result_method(result)
+        if method in buckets:
+            buckets[method].append(result)
         else:
             extras.append(result)
 
@@ -64,7 +72,37 @@ def _diversify_results(results, max_results: int):
     return selected[:max_results]
 
 
-def find_name_in_torah(
+def _pack_scored_candidate(scored) -> dict[str, Any]:
+    r = scored.result
+    payload = {
+        "method": r.method,
+        "location": {
+            "book": r.location_start.book,
+            "chapter": r.location_start.chapter,
+            "verse": r.location_start.verse,
+        },
+        "location_end": {
+            "book": r.location_end.book,
+            "chapter": r.location_end.chapter,
+            "verse": r.location_end.verse,
+        } if r.location_end else None,
+        "found_text": r.found_text,
+        "score": r.raw_score,
+        "params": r.params,
+        "context": r.context,
+        "confidence": {
+            "score": scored.score,
+            "label": scored.label,
+            "rationale": scored.rationale,
+            "features": scored.features,
+        },
+    }
+    if scored.verification is not None:
+        payload["verification"] = scored.verification
+    return payload
+
+
+def _run_search_pipeline(
     name: str,
     methods: list[str] | None = None,
     book: str | None = None,
@@ -72,22 +110,9 @@ def find_name_in_torah(
     els_max_skip: int = 500,
     include_verification: bool = True,
     diversify_methods: bool = True,
+    corpus_scope: str = "torah",
 ) -> dict[str, Any]:
-    """Search for a Hebrew name across the Tanakh using all available methods.
-
-    Args:
-        name: Hebrew name to search for (e.g. "משה", "אברהם")
-        methods: Subset of ["substring", "roshei_tevot", "sofei_tevot", "els"].
-                 None = all methods.
-        book: Restrict search to a specific book (e.g. "Genesis", "Exodus")
-        max_results: Maximum total results to return
-        els_max_skip: Maximum ELS skip distance to search
-        include_verification: Include deterministic verification payload per result
-        diversify_methods: Round-robin across methods to avoid one-method saturation
-
-    Returns:
-        Dict with query info and ranked results list.
-    """
+    scope = normalize_corpus_scope(corpus_scope)
     cfg = UnifiedSearchConfig(
         enable_substring=methods is None or "substring" in methods,
         enable_roshei=methods is None or "roshei_tevot" in methods,
@@ -96,59 +121,130 @@ def find_name_in_torah(
         els_max_skip=els_max_skip,
         els_direction="both",
         els_use_fast=True,
-        max_results_per_method=max_results,
+        max_results_per_method=max(max_results, 20),
         book=book,
+        corpus_scope=scope,
     )
     searcher = UnifiedSearch(cfg)
     raw_results = searcher.search(name)
-    results = (
-        _diversify_results(raw_results, max_results)
-        if diversify_methods
-        else raw_results[:max_results]
-    )
 
     verify_conn = _conn() if include_verification else None
-    packed_results = []
+    candidates: list[CandidateEvidence] = []
     try:
-        for r in results:
+        for row in raw_results:
             verification_payload = None
             if verify_conn is not None:
-                verification_payload = build_verification_payload(verify_conn, r)
-
-            result_payload = {
-                "method": r.method,
-                "location": {
-                    "book": r.location_start.book,
-                    "chapter": r.location_start.chapter,
-                    "verse": r.location_start.verse,
-                },
-                "location_end": {
-                    "book": r.location_end.book,
-                    "chapter": r.location_end.chapter,
-                    "verse": r.location_end.verse,
-                } if r.location_end else None,
-                "found_text": r.found_text,
-                "score": r.raw_score,
-                "params": r.params,
-                "context": r.context,
-            }
-            if verification_payload is not None:
-                result_payload["verification"] = verification_payload
-                verified = bool(verification_payload.get("verified"))
-            else:
-                verified = False
-            result_payload["confidence"] = score_search_result(r, verified=verified)
-            packed_results.append(result_payload)
+                verification_payload = build_verification_payload(verify_conn, row)
+            candidates.append(CandidateEvidence(result=row, verification=verification_payload))
     finally:
         if verify_conn is not None:
             verify_conn.close()
+
+    scored = score_candidates(name, candidates, corpus_scope=scope)
+    ranked_payloads = [_pack_scored_candidate(s) for s in scored[:max_results]]
+    display_payloads = (
+        _diversify_results(ranked_payloads, max_results) if diversify_methods else ranked_payloads
+    )
+    return {
+        "raw_results": raw_results,
+        "ranked_results": ranked_payloads,
+        "display_results": display_payloads,
+        "corpus_scope": scope,
+    }
+
+
+def find_name_in_torah(
+    name: str,
+    methods: list[str] | None = None,
+    book: str | None = None,
+    max_results: int = 20,
+    els_max_skip: int = 500,
+    include_verification: bool = True,
+    diversify_methods: bool = True,
+    corpus_scope: str = "torah",
+) -> dict[str, Any]:
+    """Search for a Hebrew name with conservative evidence aggregation.
+
+    Args:
+        name: Hebrew name to search for (e.g. "משה", "אברהם")
+        methods: Subset of ["substring", "roshei_tevot", "sofei_tevot", "els"].
+                 None = all methods.
+        book: Restrict search to a specific book
+        max_results: Maximum total results to return
+        els_max_skip: Maximum ELS skip distance to search
+        include_verification: Include deterministic verification payload per result
+        diversify_methods: Apply round-robin for display-only results
+        corpus_scope: "torah" (default) or "tanakh"
+
+    Returns:
+        Dict with deterministic ranked evidence + final verdict.
+    """
+    pipeline = _run_search_pipeline(
+        name=name,
+        methods=methods,
+        book=book,
+        max_results=max_results,
+        els_max_skip=els_max_skip,
+        include_verification=include_verification,
+        diversify_methods=diversify_methods,
+        corpus_scope=corpus_scope,
+    )
+    ranked_results = pipeline["ranked_results"]
+    display_results = pipeline["display_results"]
+    scope = pipeline["corpus_scope"]
+
+    tokens = [t for t in name.split() if t]
+    token_results: dict[str, dict[str, Any]] = {}
+    token_support: dict[str, dict[str, Any]] = {}
+    if len(tokens) > 1:
+        for token in tokens:
+            token_result = _run_search_pipeline(
+                name=token,
+                methods=methods,
+                book=book,
+                max_results=min(10, max_results),
+                els_max_skip=els_max_skip,
+                include_verification=include_verification,
+                diversify_methods=False,
+                corpus_scope=scope,
+            )
+            token_results[token] = {
+                "total_results": len(token_result["ranked_results"]),
+                "results": token_result["ranked_results"],
+            }
+        token_support = build_token_support(token_results, tokens)
+
+        all_tokens_supported = all(v.get("has_any_support") for v in token_support.values())
+        surname = tokens[-1]
+        surname_support = token_support.get(surname, {})
+        surname_only_high_skip_els = (
+            surname_support.get("best_method") == "ELS"
+            and not surname_support.get("has_direct_exact")
+            and int(surname_support.get("best_skip") or 0) >= 80
+        )
+        for row in ranked_results:
+            features = ((row.get("confidence") or {}).get("features") or {})
+            features["all_tokens_independently_supported"] = all_tokens_supported
+            features["surname_only_high_skip_els"] = surname_only_high_skip_els
+
+    final_verdict = aggregate_full_name_verdict(
+        query=name,
+        ranked_results=ranked_results,
+        token_support=token_support if token_support else None,
+        corpus_scope=scope,
+    )
 
     return {
         "query": name,
         "query_normalized": extract_letters(name, FinalsPolicy.NORMALIZE),
         "book_filter": book,
-        "total_results": len(results),
-        "results": packed_results,
+        "corpus_scope": scope,
+        "total_results": len(display_results),
+        "results": display_results,
+        "ranked_results": ranked_results,
+        "best_evidence": ranked_results[0] if ranked_results else None,
+        "word_results": token_results if token_results else None,
+        "final_verdict": final_verdict,
     }
 
 

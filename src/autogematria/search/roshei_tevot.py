@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from autogematria.config import TORAH_BOOKS, normalize_corpus_scope
 from autogematria.normalize import extract_letters, FinalsPolicy
 from autogematria.search.base import SearchMethod, SearchResult
 
@@ -36,12 +37,14 @@ class RosheiTevotSearch(SearchMethod):
         query: str,
         max_results: int = 100,
         book: str | None = None,
+        corpus_scope: str = "tanakh",
     ) -> list[SearchResult]:
         """Find all roshei tevot occurrences of query."""
         self._load_words()
         query_norm = extract_letters(query, FinalsPolicy.NORMALIZE)
         if len(query_norm) < 2:
             return []
+        scope = normalize_corpus_scope(corpus_scope)
 
         # Build string of first letters
         first_letters = "".join(w[0] for w in self._word_data)
@@ -65,6 +68,11 @@ class RosheiTevotSearch(SearchMethod):
                 start = idx + 1
                 continue
             if book and (loc_start.book != book or loc_end.book != book):
+                start = idx + 1
+                continue
+            if scope == "torah" and (
+                loc_start.book not in TORAH_BOOKS or loc_end.book not in TORAH_BOOKS
+            ):
                 start = idx + 1
                 continue
 
@@ -129,12 +137,14 @@ class SofeiTevotSearch(SearchMethod):
         query: str,
         max_results: int = 100,
         book: str | None = None,
+        corpus_scope: str = "tanakh",
     ) -> list[SearchResult]:
         """Find all sofei tevot occurrences of query."""
         self._load_words()
         query_norm = extract_letters(query, FinalsPolicy.NORMALIZE)
         if len(query_norm) < 2:
             return []
+        scope = normalize_corpus_scope(corpus_scope)
 
         # Build string of last letters
         last_letters = "".join(w[1] for w in self._word_data)
@@ -157,6 +167,11 @@ class SofeiTevotSearch(SearchMethod):
                 start = idx + 1
                 continue
             if book and (loc_start.book != book or loc_end.book != book):
+                start = idx + 1
+                continue
+            if scope == "torah" and (
+                loc_start.book not in TORAH_BOOKS or loc_end.book not in TORAH_BOOKS
+            ):
                 start = idx + 1
                 continue
 
