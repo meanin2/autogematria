@@ -111,10 +111,14 @@ audited manually.
 ```python
 from hebrew import Hebrew
 from hebrew.gematria import GematriaTypes
+from autogematria.tools.tool_functions import gematria_connections
 
 h = Hebrew("אלהים")
 print(h.gematria())                              # 86 (standard)
 print(h.gematria(GematriaTypes.MISPAR_GADOL))     # 646
+
+connections = gematria_connections("משה")
+print(connections["related_words"][:5])  # graph-ranked value-equivalent links
 ```
 
 ## Architecture
@@ -124,6 +128,8 @@ print(h.gematria(GematriaTypes.MISPAR_GADOL))     # 646
 - **Gematria engine**: [hebrew](https://pypi.org/project/hebrew/) PyPI package (23 methods)
 - **Search**: Pure Python, in-memory letter arrays for ELS
 - **Stats**: scipy for BH/FDR correction, custom null models
+- **Gematria connection library**: curated source-backed equivalence records in
+  `data/gematria/connections.json` plus graph-ranked related-term expansion
 
 ### Conservative verdict contract
 
@@ -161,9 +167,10 @@ python -m autogematria.tools.mcp_server
 # Server runs on http://127.0.0.1:8087/sse
 ```
 
-**5 MCP tools:**
+**6 MCP tools:**
 - `search_name` — find a name using all methods
 - `lookup_gematria` — compute gematria + find equivalent words
+- `explore_gematria_connections` — source-backed and graph-ranked gematria links
 - `read_verse` — get a verse with word-by-word gematria
 - `inspect_els` — letter-by-letter ELS breakdown
 - `get_corpus_stats` — corpus summary
@@ -203,6 +210,7 @@ src/autogematria/
   schema.py           # SQLite DDL
   ingest.py           # JSON → SQLite
   gematria_index.py   # Precompute gematria values
+  gematria_connections.py # Source-backed gematria relationship graph
   search/
     base.py           # SearchResult, SearchMethod ABC
     els.py            # Equidistant Letter Sequences

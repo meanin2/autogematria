@@ -23,6 +23,7 @@ class ELSSearch(SearchMethod):
         self._letter_string: str | None = None
         self._book_offsets: dict[str, tuple[int, int]] | None = None
         self._scope_offsets: dict[str, tuple[int, int]] | None = None
+        self._exact_word_cache: dict[tuple[str, str, str | None], bool] = {}
 
     def _load_letters(self):
         """Load the entire letter array as a single string. ~1.2MB in memory."""
@@ -67,6 +68,58 @@ class ELSSearch(SearchMethod):
         if direction not in _VALID_DIRECTIONS:
             raise ValueError(f"direction must be one of {_VALID_DIRECTIONS}")
 
+    def _has_exact_word_match(
+        self,
+        conn: any,
+        query_norm: str,
+        corpus_scope: str,
+        book: str | None,
+    ) -> bool:
+        key = (query_norm, corpus_scope, book)
+        if key in self._exact_word_cache:
+            return self._exact_word_cache[key]
+
+        where_sql = "WHERE w.word_normalized = ?"
+        params: list[any] = [query_norm]
+        if corpus_scope == "torah":
+            where_sql += " AND b.category = 'Torah'"
+        if book:
+            where_sql += " AND b.api_name = ?"
+            params.append(book)
+
+        row = conn.execute(
+            "SELECT 1 FROM words w "
+            "JOIN verses v ON w.verse_id = v.verse_id "
+            "JOIN chapters c ON v.chapter_id = c.chapter_id "
+            "JOIN books b ON c.book_id = b.book_id "
+            f"{where_sql} LIMIT 1",
+            params,
+        ).fetchone()
+        found = row is not None
+        self._exact_word_cache[key] = found
+        return found
+
+    @staticmethod
+    def _passes_long_query_gate(
+        *,
+        query_len: int,
+        has_exact_word_support: bool,
+        skip: int,
+        loc_start: any,
+        loc_end: any,
+    ) -> bool:
+        """Conservative gate for long ELS-only strings with no direct support."""
+        if query_len < 6 or has_exact_word_support:
+            return True
+        if abs(skip) > 40:
+            return False
+        # Avoid overclaiming long-name ELS findings that span multiple verses/chapters.
+        return (
+            loc_start.book == loc_end.book
+            and loc_start.chapter == loc_end.chapter
+            and loc_start.verse == loc_end.verse
+        )
+
     def search(
         self,
         query: str,
@@ -95,6 +148,7 @@ class ELSSearch(SearchMethod):
         scope = normalize_corpus_scope(corpus_scope)
         if book and scope == "torah" and book not in TORAH_BOOKS:
             return []
+        has_exact_word_support = False
 
         text = self._letter_string
         text_len = len(text)
@@ -111,6 +165,7 @@ class ELSSearch(SearchMethod):
 
         results: list[SearchResult] = []
         conn = self._connect()
+        has_exact_word_support = self._has_exact_word_match(conn, query_norm, scope, book)
 
         skips_to_check = []
         if direction in ("forward", "both"):
@@ -155,6 +210,14 @@ class ELSSearch(SearchMethod):
                     last_idx = max(pos, end_idx)
                     loc_start = self._location_for_letter(conn, first_idx)
                     loc_end = self._location_for_letter(conn, last_idx)
+                    if not self._passes_long_query_gate(
+                        query_len=len(query_norm),
+                        has_exact_word_support=has_exact_word_support,
+                        skip=skip,
+                        loc_start=loc_start,
+                        loc_end=loc_end,
+                    ):
+                        continue
                     # Collect the actual letters for display
                     found = "".join(text[pos + i * skip] for i in range(len(query_norm)))
                     results.append(SearchResult(
@@ -208,6 +271,7 @@ class ELSSearch(SearchMethod):
         text_len = len(text)
         results: list[SearchResult] = []
         conn = self._connect()
+        has_exact_word_support = self._has_exact_word_match(conn, query_norm, scope, book)
         book_bounds = None
         scope_bounds = self._scope_offsets.get(scope) if self._scope_offsets else None
 
@@ -274,6 +338,15 @@ class ELSSearch(SearchMethod):
 
                         loc_start = self._location_for_letter(conn, span_start)
                         loc_end = self._location_for_letter(conn, span_end)
+                        if not self._passes_long_query_gate(
+                            query_len=len(query_norm),
+                            has_exact_word_support=has_exact_word_support,
+                            skip=signed_skip,
+                            loc_start=loc_start,
+                            loc_end=loc_end,
+                        ):
+                            start = idx + 1
+                            continue
                         found = "".join(
                             text[start_index + i * signed_skip] for i in range(len(query_norm))
                         )

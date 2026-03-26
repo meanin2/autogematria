@@ -69,9 +69,13 @@ def find_name_full_report(
     for method in REPORT_GEMATRIA_METHODS:
         try:
             g = gematria_lookup(name_preserved, method=method, max_equivalents=10)
+            connections = (g.get("connections") or {}).get("related_words") or []
+            lib_matches = (g.get("connections") or {}).get("library_matches") or []
             gematria_info[method] = {
                 "value": g["value"],
                 "equivalents": [e["word"] for e in g["equivalents"][:5]],
+                "related_words": [e["word"] for e in connections[:5]],
+                "source_matches": [m.get("source") for m in lib_matches if m.get("source")][:4],
             }
         except Exception:
             pass
@@ -143,6 +147,9 @@ def main():
         for method, info in report["gematria"].items():
             equivs = ", ".join(info["equivalents"][:3])
             print(f"    {method}: {info['value']} (also: {equivs})")
+            related = ", ".join(info.get("related_words", [])[:3])
+            if related:
+                print(f"       related: {related}")
 
     if report["search_results"]["results"]:
         print("\n  Top findings:")

@@ -13,6 +13,7 @@ from hebrew import Hebrew
 from hebrew.gematria import GematriaTypes
 
 from autogematria.config import DB_PATH, normalize_corpus_scope
+from autogematria.gematria_connections import gematria_connections as build_gematria_connections
 from autogematria.normalize import normalize_hebrew, extract_letters, FinalsPolicy
 from autogematria.scoring.calibrated import CandidateEvidence, score_candidates
 from autogematria.scoring.verdict import aggregate_full_name_verdict, build_token_support
@@ -252,6 +253,7 @@ def gematria_lookup(
     word: str,
     method: str = "MISPAR_HECHRACHI",
     max_equivalents: int = 20,
+    include_connections: bool = True,
 ) -> dict[str, Any]:
     """Compute gematria value and find all Tanakh words with the same value.
 
@@ -259,6 +261,7 @@ def gematria_lookup(
         word: Hebrew word to compute gematria for
         method: Gematria method name (e.g. "MISPAR_HECHRACHI", "MISPAR_GADOL", "ATBASH")
         max_equivalents: Max equivalent words to return
+        include_connections: Include source-backed connection graph payload
 
     Returns:
         Dict with the word's value and all equivalent words found in Tanakh.
@@ -304,6 +307,16 @@ def gematria_lookup(
 
     conn.close()
 
+    connections = None
+    if include_connections:
+        connections = build_gematria_connections(
+            word,
+            method=resolved_method,
+            max_equivalents=max(80, max_equivalents),
+            max_related=15,
+            db_path=DB_PATH,
+        )
+
     return {
         "word": word,
         "normalized": clean,
@@ -312,7 +325,23 @@ def gematria_lookup(
         "value": value,
         "total_equivalents": len(equivalents),
         "equivalents": equivalents,
+        "connections": connections,
     }
+
+
+def gematria_connections(
+    word: str,
+    method: str = "MISPAR_HECHRACHI",
+    max_related: int = 20,
+) -> dict[str, Any]:
+    """Return source-backed and graph-ranked gematria connections for a word."""
+    return build_gematria_connections(
+        word,
+        method=method,
+        max_equivalents=max(120, max_related * 3),
+        max_related=max_related,
+        db_path=DB_PATH,
+    )
 
 
 def get_verse(

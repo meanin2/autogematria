@@ -1,0 +1,68 @@
+{
+  "records": [
+    {
+      "value": 345,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["משה", "השם", "שמה"],
+      "relation_type": "traditional_equivalence",
+      "source": "Traditional/Kabbalistic",
+      "notes": "משה=345 and השם=345 are frequently paired as a symbolic connection."
+    },
+    {
+      "value": 358,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["נחש", "משיח"],
+      "relation_type": "zoharic_equivalence",
+      "source": "Zohar",
+      "notes": "נחש=משיח=358 in classical mystical literature."
+    },
+    {
+      "value": 70,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["יין", "סוד"],
+      "relation_type": "talmudic_equivalence",
+      "source": "Eruvin 65a",
+      "notes": "When wine enters, secrets emerge (יין וסוד share gematria 70)."
+    },
+    {
+      "value": 611,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["תורה"],
+      "relation_type": "talmudic_reference",
+      "source": "Makkot 23b",
+      "notes": "Torah=611, tied to the 613 mitzvot tradition."
+    },
+    {
+      "value": 86,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אלהים", "הטבע"],
+      "relation_type": "traditional_equivalence",
+      "source": "Traditional",
+      "notes": "אלהים and הטבע both evaluate to 86."
+    },
+    {
+      "value": 58,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["נח", "חן"],
+      "relation_type": "baal_haturim",
+      "source": "Baal HaTurim",
+      "notes": "Noah and grace are linked by reversal and equal value."
+    },
+    {
+      "value": 248,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אברהם"],
+      "relation_type": "traditional_reference",
+      "source": "Mishnah Ohalot 1:8",
+      "notes": "Abraham is connected to 248 positive commandments/limbs."
+    },
+    {
+      "value": 26,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["יהוה"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Tetragrammaton's standard value."
+    }
+  ]
+}

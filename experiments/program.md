@@ -1,78 +1,44 @@
-# AutoGematria Autoresearch Program
+# AutoResearch Program (Current Campaign)
 
-## Goal
+## Objective
 
-Maximize the `composite_score` on the **DEV** split by tuning search parameters and methods.
+Improve conservative reliability on the **dev** benchmark while preserving recall.
 
-The composite score is: `0.4 * recall + 0.3 * MRR - 0.3 * FPR`
+Scalar metric: `composite = 0.4 * recall + 0.3 * MRR - 0.3 * FPR`
 
-## What You Can Modify
+## Benchmark Contract
 
-- `experiments/configs/*.json` — search configuration files
-- `src/autogematria/search/` — search method implementations (with care)
+- Fixed benchmark: `python -m autogematria.autoresearch.harness --split dev`
+- Baseline for this campaign: `composite=0.6388`, `recall=1.0`, `mrr=0.8485`, `fpr=0.0526`
+- Target: reduce false positives to `0.0` without dropping recall
 
-## What You CANNOT Modify
+## Constraints
 
-- `src/autogematria/autoresearch/harness.py` — the benchmark harness
-- `src/autogematria/autoresearch/scorer.py` — the scoring metric
-- `src/autogematria/autoresearch/ground_truth.py` — the data loader
-- `data/ground_truth/` — the ground truth dataset
-- `data/autogematria.db` — the corpus database
+- Keep default corpus scope conservative (`torah`)
+- Keep deterministic ranking path unchanged by display diversification
+- Do not optimize for always returning a finding
 
-## Workflow
+## Hypotheses (ranked)
 
-```
-LOOP FOREVER:
-  1. Read the current best score: python -c "from autogematria.autoresearch.logger import best_so_far; print(best_so_far())"
-  2. Propose a new configuration or search improvement
-  3. Write config to experiments/configs/<name>.json
-  4. Run: python -m autogematria.autoresearch.harness --config experiments/configs/<name>.json --split dev
-  5. Compare new ScoreCard to current best
-  6. If improved: git commit with descriptive message, log the result
-  7. If not: revert changes, log the attempt anyway
-  8. NEVER STOP — repeat
-```
+1. Long ELS-only strings with no direct exact support are mostly random-like and should be gated.
+2. Config-only skip-range tuning will not fully remove hard-negative leakage.
+3. Explainability improves if gematria results include source-backed connection graphs.
 
-## Config Format
+## Experiment Log
 
-```json
-{
-  "enable_substring": true,
-  "enable_roshei": true,
-  "enable_sofei": true,
-  "enable_els": true,
-  "els_min_skip": 1,
-  "els_max_skip": 500,
-  "els_use_fast": true,
-  "max_results_per_method": 20,
-  "book": null
-}
-```
+| # | Hypothesis | Change | Score | Delta | Kept? |
+|---|-----------|--------|-------|-------|-------|
+| 0 | baseline | pre-gate conservative scorer | 0.6388 | -- | -- |
+| 1 | config-only sweep | els_min/els_max tuning | 0.6388 | +0.0000 | no |
+| 2 | long-query ELS gate | require same-verse + low-skip for long no-direct queries | 0.6545 | +0.0157 | yes |
 
-## Pre-Registered Parameter Ranges
+## What Worked
 
-These ranges are LOCKED. Do not search outside them.
+- The long-query ELS gate removed the remaining dev hard-negative false positive.
+- Recall stayed at `1.0`, so the gain came from cleaner abstention behavior.
 
-| Parameter | Min | Max | Notes |
-|-----------|-----|-----|-------|
-| els_min_skip | 1 | 100 | Skip 1 = direct consecutive letters |
-| els_max_skip | 50 | 10000 | Higher skips are statistically weaker |
-| max_results_per_method | 5 | 100 | Trade-off: speed vs completeness |
+## Next Hypotheses
 
-## Ground Truth
-
-- **Train split**: 20 entries. Use for development and debugging.
-- **Dev split**: 9 entries. Use for scoring experiments.
-- **Holdout split**: 6 entries. NEVER touch during development.
-
-Positive entries: known traditional findings (ELS, substring, roshei tevot, gematria)
-Negative controls: modern Hebrew words that should NOT produce significant findings
-
-## Ideas to Explore
-
-1. Tune ELS max_skip — higher values find more but may increase false positives
-2. Adjust max_results_per_method — more results may improve recall
-3. Improve ELS scoring — weight by skip distance, verse context
-4. Add gematria-based search to the unified search pipeline
-5. Experiment with search order and result merging strategies
-6. Try restricting search to Torah-only vs full Tanakh
+1. Add method-specific task balancing so `multi_word_full_name` has positive anchor entries.
+2. Introduce a compactness floor for ELS ranking when query length >= 5.
+3. Add constrained within-verse null checks for the top-k ELS candidates during scoring.

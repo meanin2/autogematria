@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from autogematria.tools.tool_functions import (
     find_name_in_torah,
     gematria_lookup,
+    gematria_connections,
     get_verse,
     els_detail,
     corpus_stats,
@@ -72,6 +73,16 @@ def lookup_gematria(
         max_equivalents: Max equivalent words to return
     """
     return gematria_lookup(word, method, max_equivalents)
+
+
+@mcp.tool()
+def explore_gematria_connections(
+    word: str,
+    method: str = "MISPAR_HECHRACHI",
+    max_related: int = 20,
+) -> dict:
+    """Get graph-ranked, source-backed gematria connections for a word/value cluster."""
+    return gematria_connections(word, method, max_related)
 
 
 @mcp.tool()

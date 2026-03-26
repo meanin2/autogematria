@@ -81,6 +81,12 @@ def format_report(report: dict) -> str:
         lines.append(f"*Gematria:* {std.get('value', '?')}")
         if equivs:
             lines.append(f"  Equivalent words: {', '.join(equivs)}")
+        related = std.get("related_words", [])[:4]
+        if related:
+            lines.append(f"  Related connections: {', '.join(related)}")
+        sources = std.get("source_matches", [])[:3]
+        if sources:
+            lines.append(f"  Source-backed links: {', '.join(sources)}")
 
     # Word gematria for multi-word names
     wg = report.get("word_gematria")
