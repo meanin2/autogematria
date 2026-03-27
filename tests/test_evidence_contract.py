@@ -6,7 +6,12 @@ from autogematria.autoresearch.ground_truth import load_ground_truth
 from autogematria.config import DB_PATH, TORAH_BOOKS
 from autogematria.scoring.calibrated import CandidateEvidence, score_candidates
 from autogematria.search.base import Location, SearchResult
-from autogematria.scoring.verdict import VERDICT_NONE, VERDICT_STRONG, VERDICT_WEAK
+from autogematria.scoring.verdict import (
+    VERDICT_MODERATE,
+    VERDICT_NONE,
+    VERDICT_STRONG,
+    VERDICT_WEAK,
+)
 from autogematria.tools.tool_functions import find_name_in_torah
 
 
@@ -99,3 +104,40 @@ def test_hard_negative_remains_non_convincing():
     data = find_name_in_torah(candidate.name, max_results=10, diversify_methods=False)
     verdict = data["final_verdict"]["verdict"]
     assert verdict in {VERDICT_WEAK, VERDICT_NONE}
+
+
+def test_multiword_token_fallback_surfaces_target_evidence():
+    data = find_name_in_torah("משה גנדי", max_results=20, diversify_methods=False)
+    assert data["total_results"] >= 2
+    assert data["final_verdict"]["verdict"] in {VERDICT_WEAK, VERDICT_MODERATE}
+    assert any(
+        bool(((row.get("confidence") or {}).get("features") or {}).get("token_fallback"))
+        for row in data["ranked_results"]
+    )
+
+
+def test_multiword_token_fallback_applies_conservative_confidence_discount():
+    data = find_name_in_torah("משה גנדי", max_results=20, diversify_methods=False)
+    final = data["final_verdict"]
+    assert final["verdict"] == VERDICT_MODERATE
+    assert 0.6 <= float(final["confidence_score"]) < 0.8
+    assert "token-level fallback evidence is conservatively discounted" in (
+        final.get("discounted_findings") or []
+    )
+
+
+def test_multiword_token_fallback_does_not_trigger_for_decoy():
+    data = find_name_in_torah("יצחק שמאגעגקן", max_results=20, diversify_methods=False)
+    assert data["total_results"] == 0
+    assert data["final_verdict"]["verdict"] == VERDICT_NONE
+
+
+def test_scope_switch_keeps_moshe_gandi_behavior_stable():
+    torah = find_name_in_torah("משה גנדי", max_results=20, diversify_methods=False, corpus_scope="torah")
+    tanakh = find_name_in_torah("משה גנדי", max_results=20, diversify_methods=False, corpus_scope="tanakh")
+
+    t_final = torah["final_verdict"]
+    k_final = tanakh["final_verdict"]
+    assert k_final["verdict"] == t_final["verdict"]
+    assert float(k_final["confidence_score"]) == pytest.approx(float(t_final["confidence_score"]), rel=0, abs=1e-6)
+    assert tanakh["total_results"] == torah["total_results"]

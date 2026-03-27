@@ -208,10 +208,14 @@ def _resolve_query_with_variants(
     if best_key[0] <= 0:
         best_variant = variants[0]
         best_data = first_data
-    # Avoid overfitting to weak alternate transliterations.
+    # Avoid overfitting to weak alternates when curated-first already has hits,
+    # or when the alternate has no verified support.
     elif best_key[3] != 0 and best_key[0] < 2:
-        best_variant = variants[0]
-        best_data = first_data
+        first_has_hits = first_key is not None and first_key[2] > 0
+        alternate_has_verified = best_key[1] > 0
+        if first_has_hits or not alternate_has_verified:
+            best_variant = variants[0]
+            best_data = first_data
     elif first_key is not None and first_key[0] > 0:
         best_variant = variants[0]
         best_data = first_data

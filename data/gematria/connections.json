@@ -63,6 +63,54 @@
       "relation_type": "foundational",
       "source": "Classical",
       "notes": "Tetragrammaton's standard value."
+    },
+    {
+      "value": 13,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אהבה", "אחד"],
+      "relation_type": "traditional_equivalence",
+      "source": "Classical/Kabbalistic",
+      "notes": "Love and unity share gematria 13 in widely cited traditional sources."
+    },
+    {
+      "value": 240,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["עמלק", "ספק"],
+      "relation_type": "traditional_equivalence",
+      "source": "Classical",
+      "notes": "Amalek and doubt share gematria 240 in classical teachings."
+    },
+    {
+      "value": 44,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["ילד", "דם"],
+      "relation_type": "traditional_equivalence",
+      "source": "Sefer HaTemunah",
+      "notes": "Child and blood share gematria 44 in cited traditional literature."
+    },
+    {
+      "value": 248,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אברהם", "רמח"],
+      "relation_type": "traditional_symbolic",
+      "source": "Classical",
+      "notes": "Abraham (248) is linked with רמח, symbolic of the 248 positive mitzvot."
+    },
+    {
+      "value": 318,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אליעזר"],
+      "relation_type": "talmudic_reference",
+      "source": "Nedarim 32a",
+      "notes": "Eliezer equals 318 in Talmudic discussion of Abraham's household."
+    },
+    {
+      "value": 612,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["ברית"],
+      "relation_type": "traditional_reference",
+      "source": "Classical",
+      "notes": "Brit is classically associated with value 612."
     }
   ]
 }

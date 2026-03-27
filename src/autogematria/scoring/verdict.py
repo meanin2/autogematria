@@ -9,6 +9,7 @@ VERDICT_STRONG = "strong_evidence"
 VERDICT_MODERATE = "moderate_evidence"
 VERDICT_WEAK = "weak_evidence"
 VERDICT_NONE = "no_convincing_evidence"
+TOKEN_FALLBACK_CONFIDENCE_PENALTY = 0.12
 
 COMMON_FIRST_NAMES = {
     "אברהם",
@@ -141,6 +142,10 @@ def aggregate_full_name_verdict(
             and bool((row.get("verification") or {}).get("verified"))
             for row in ranked_results
         )
+        token_fallback_used = any(
+            bool((((row.get("confidence") or {}).get("features") or {}).get("token_fallback")))
+            for row in ranked_results
+        )
         all_tokens_supported = all(support.get(t, {}).get("has_any_support") for t in tokens)
         all_tokens_direct = all(support.get(t, {}).get("has_direct_exact") for t in tokens)
         all_tokens_only_weak_els = all(
@@ -159,6 +164,9 @@ def aggregate_full_name_verdict(
         confidence = 0.7 * strongest_score + 0.3 * supported_ratio
         if full_phrase_hit:
             confidence += 0.2
+        if token_fallback_used and not full_phrase_hit:
+            confidence -= TOKEN_FALLBACK_CONFIDENCE_PENALTY
+            discounted.append("token-level fallback evidence is conservatively discounted")
         if surname_only_high_skip_els:
             confidence -= 0.22
             discounted.append("surname evidence appears only via high-skip ELS")

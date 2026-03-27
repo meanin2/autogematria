@@ -1,0 +1,26 @@
+{
+  "best_strategy": {
+    "surname_score_min": 0.5,
+    "surname_skip_max": 12,
+    "confidence_penalty": 0.2,
+    "weak_min": 0.42,
+    "moderate_min": 0.58,
+    "confidence_band_low": 0.45,
+    "confidence_band_high": 0.8,
+    "require_first_direct_exact": true,
+    "require_all_tokens_supported": true,
+    "min_verified_rows": 1,
+    "require_same_book": false,
+    "require_same_chapter": false,
+    "require_same_verse": false,
+    "require_joined_els_gate": false,
+    "joined_els_skip_cap": 40,
+    "latin_policy": "best_verified",
+    "scope_policy": "torah_to_tanakh",
+    "max_variants": 8,
+    "weighted_good_bonus": 4.0,
+    "weighted_verified_bonus": 1.2,
+    "weighted_total_bonus": 0.3,
+    "weighted_index_penalty": 0.25
+  }
+}

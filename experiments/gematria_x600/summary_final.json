@@ -1,0 +1,39 @@
+{
+  "baseline_score": 311.0,
+  "best_500_score": 314.0,
+  "best_final_score": 314.0,
+  "improvement_vs_baseline": 3.0,
+  "improvement_vs_best_500": 0.0,
+  "next_direction": "source_weighted",
+  "experiments_run_followup": 101,
+  "best_params": {
+    "base_score": 0.26,
+    "freq_scale": 4.8,
+    "freq_cap": 0.3,
+    "exact_bonus": 0.18,
+    "anagram_bonus": 0.24,
+    "edit_bonus": 0.02,
+    "source_backed_bonus": 0.28,
+    "source_pair_bonus": 0.42
+  },
+  "best_details": {
+    "score": 314.0,
+    "positive_points": 314,
+    "negative_penalty": 0,
+    "positive_cases": 14,
+    "negative_cases": 10,
+    "positive_hit_rate": 1.0,
+    "negative_flag_rate": 0.0,
+    "score_params": {
+      "base_score": 0.26,
+      "freq_scale": 4.8,
+      "freq_cap": 0.3,
+      "exact_bonus": 0.18,
+      "anagram_bonus": 0.24,
+      "edit_bonus": 0.02,
+      "source_backed_bonus": 0.28,
+      "source_pair_bonus": 0.42
+    }
+  },
+  "generated_at": "2026-03-27T11:37:34+03:00"
+}

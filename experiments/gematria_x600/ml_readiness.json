@@ -1,0 +1,29 @@
+{
+  "ground_truth": {
+    "gematria_total": 17,
+    "gematria_positive": 13,
+    "gematria_negative": 4,
+    "gematria_split_positive": {
+      "train": 7,
+      "dev": 4,
+      "holdout": 2
+    },
+    "gematria_split_negative": {
+      "train": 1,
+      "dev": 1,
+      "holdout": 2
+    }
+  },
+  "connections_library": {
+    "records": 14,
+    "directed_pair_labels": 22,
+    "discoverable_directed_pairs": 21
+  },
+  "recommendation": "insufficient_for_stable_ml",
+  "reasons": [
+    "only 13 gematria positives in ground truth (recommend >=50)",
+    "only 4 gematria negatives in ground truth (recommend >=50)",
+    "only 22 directed source-pair labels (recommend >=120)",
+    "only 21 discoverable directed source-pairs in corpus (recommend >=100)"
+  ]
+}

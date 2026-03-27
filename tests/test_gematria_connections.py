@@ -32,3 +32,12 @@ def test_gematria_lookup_includes_connections_payload():
     assert data["value"] == 345
     assert data["connections"] is not None
     assert "related_words" in data["connections"]
+
+
+def test_source_pair_relation_for_ahava_echad():
+    data = gematria_connections("אהבה", max_related=40)
+    target = next((row for row in data["related_words"] if row["word"] == "אחד"), None)
+    assert target is not None
+    relations = set(target.get("relations") or [])
+    assert "source_backed" in relations
+    assert "source_pair" in relations

@@ -19,6 +19,26 @@ from autogematria.normalize import FinalsPolicy, normalize_hebrew
 
 CONNECTIONS_LIBRARY_PATH = DATA_DIR / "gematria" / "connections.json"
 
+DEFAULT_GEMATRIA_SCORE_PARAMS: dict[str, float] = {
+    "base_score": 0.26,
+    "freq_scale": 4.8,
+    "freq_cap": 0.3,
+    "exact_bonus": 0.18,
+    "anagram_bonus": 0.24,
+    "edit_bonus": 0.02,
+    "source_backed_bonus": 0.28,
+    "source_pair_bonus": 0.42,
+}
+
+
+def _resolve_score_params(score_params: dict[str, float] | None) -> dict[str, float]:
+    params = dict(DEFAULT_GEMATRIA_SCORE_PARAMS)
+    if score_params:
+        for key, value in score_params.items():
+            if key in params:
+                params[key] = float(value)
+    return params
+
 
 def _resolve_method(method: str) -> tuple[GematriaTypes, str]:
     gtype = getattr(GematriaTypes, method, None)
@@ -91,13 +111,20 @@ def gematria_connections(
     max_equivalents: int = 120,
     max_related: int = 20,
     db_path: Path = DB_PATH,
+    score_params: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build a connection graph for same-value words and source-backed links."""
     clean = normalize_hebrew(word, FinalsPolicy.PRESERVE)
     gtype, resolved_method = _resolve_method(method)
     value = Hebrew(clean).gematria(gtype)
     norm_word = normalize_hebrew(clean, FinalsPolicy.NORMALIZE)
+    score_cfg = _resolve_score_params(score_params)
     lib_matches = _library_matches(value=value, method=resolved_method, query_word=clean)
+    value_records = [
+        rec
+        for rec in load_connections_library()
+        if str(rec.get("method", "")) == resolved_method and int(rec.get("value", -1)) == value
+    ]
 
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -118,8 +145,7 @@ def gematria_connections(
     query_sorted = _sorted_letters(clean)
     lib_terms_for_value = {
         term
-        for record in load_connections_library()
-        if str(record.get("method", "")) == resolved_method and int(record.get("value", -1)) == value
+        for record in value_records
         for term in record.get("terms", [])
     }
 
@@ -130,31 +156,42 @@ def gematria_connections(
         term_norm = normalize_hebrew(term, FinalsPolicy.NORMALIZE)
         relations: list[str] = ["same_value"]
         source_refs: list[str] = []
-        score = 0.2 + min(0.35, math.log10(freq + 1) / 4)
+        score = float(score_cfg["base_score"]) + min(
+            float(score_cfg["freq_cap"]),
+            math.log10(freq + 1) / max(float(score_cfg["freq_scale"]), 1e-6),
+        )
 
         if term_norm == norm_word:
             relations.append("exact_match")
-            score += 0.35
+            score += float(score_cfg["exact_bonus"])
         if _sorted_letters(term) == query_sorted:
             relations.append("anagram")
-            score += 0.18
+            score += float(score_cfg["anagram_bonus"])
         distance = _levenshtein(norm_word, term_norm)
         if 0 < distance <= 2:
             relations.append("orthographic_neighbor")
-            score += 0.08
+            score += float(score_cfg["edit_bonus"])
 
         if term in lib_terms_for_value:
             relations.append("source_backed")
-            score += 0.22
-            for rec in load_connections_library():
-                if (
-                    str(rec.get("method", "")) == resolved_method
-                    and int(rec.get("value", -1)) == value
-                    and term in rec.get("terms", [])
-                ):
+            score += float(score_cfg["source_backed_bonus"])
+            paired_record_found = False
+            for rec in value_records:
+                rec_terms = [str(t) for t in rec.get("terms", [])]
+                rec_terms_norm = {
+                    normalize_hebrew(t, FinalsPolicy.NORMALIZE) for t in rec_terms
+                }
+                query_present = clean in rec_terms or norm_word in rec_terms_norm
+                term_present = term in rec_terms
+                if term_present:
                     source_refs.append(str(rec.get("source", "")))
                     if rec.get("relation_type"):
                         relations.append(str(rec["relation_type"]))
+                if query_present and term_present:
+                    paired_record_found = True
+            if paired_record_found and term_norm != norm_word:
+                relations.append("source_pair")
+                score += float(score_cfg["source_pair_bonus"])
 
         graph.add_node(term, kind="equivalent", frequency=freq)
         graph.add_edge(clean, term, relations=sorted(set(relations)), weight=round(score, 4))

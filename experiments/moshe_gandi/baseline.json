@@ -1,0 +1,7 @@
+{
+  "score": 40.0,
+  "timestamp": "2026-03-26T17:18:55+02:00",
+  "commit": "2290607622cebe6d5c4c6d02a9f156c2f2ad05b9",
+  "target_query": "משה גנדי",
+  "notes": "No full-query rows returned; token support exists but verdict short-circuits to no_convincing_evidence."
+}

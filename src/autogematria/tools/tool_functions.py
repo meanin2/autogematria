@@ -6,6 +6,7 @@ AutoGematria system. Each function returns a structured dict.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import sqlite3
 from typing import Any
 
@@ -101,6 +102,74 @@ def _pack_scored_candidate(scored) -> dict[str, Any]:
     if scored.verification is not None:
         payload["verification"] = scored.verification
     return payload
+
+
+def _build_token_fallback_rows(
+    *,
+    tokens: list[str],
+    token_results: dict[str, dict[str, Any]],
+    token_support: dict[str, dict[str, Any]],
+    max_results: int,
+) -> list[dict[str, Any]]:
+    """Build conservative multi-word fallback rows from per-token evidence."""
+    if len(tokens) < 2:
+        return []
+
+    first = tokens[0]
+    surname = tokens[-1]
+    first_support = token_support.get(first) or {}
+    surname_support = token_support.get(surname) or {}
+
+    # Guardrail: only allow fallback when first-name evidence is direct exact.
+    if not bool(first_support.get("has_direct_exact")):
+        return []
+
+    surname_skip = int(surname_support.get("best_skip") or 10_000)
+    surname_score = float(surname_support.get("best_score") or 0.0)
+    surname_quality_signal = bool(surname_support.get("has_direct_exact")) or (
+        surname_support.get("best_method") == "ELS"
+        and bool(surname_support.get("has_any_support"))
+        and surname_score >= 0.58
+        and surname_skip <= 10
+    )
+    if not surname_quality_signal:
+        return []
+
+    if not all(bool(token_support.get(token, {}).get("has_any_support")) for token in tokens):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for token in tokens:
+        candidates = (token_results.get(token) or {}).get("results") or []
+        if not candidates:
+            return []
+        chosen = next(
+            (
+                row
+                for row in candidates
+                if bool((row.get("verification") or {}).get("verified"))
+            ),
+            candidates[0],
+        )
+        row = deepcopy(chosen)
+        params = row.get("params") or {}
+        params["derived_from_token"] = token
+        params["fallback_mode"] = "token_support"
+        row["params"] = params
+
+        confidence = row.get("confidence") or {}
+        features = confidence.get("features") or {}
+        features["token_fallback"] = True
+        features["fallback_token"] = token
+        confidence["features"] = features
+        row["confidence"] = confidence
+        rows.append(row)
+
+    rows.sort(
+        key=lambda row: float(((row.get("confidence") or {}).get("score") or 0.0)),
+        reverse=True,
+    )
+    return rows[:max_results]
 
 
 def _run_search_pipeline(
@@ -227,6 +296,21 @@ def find_name_in_torah(
             features = ((row.get("confidence") or {}).get("features") or {})
             features["all_tokens_independently_supported"] = all_tokens_supported
             features["surname_only_high_skip_els"] = surname_only_high_skip_els
+
+        if not ranked_results:
+            fallback_rows = _build_token_fallback_rows(
+                tokens=tokens,
+                token_results=token_results,
+                token_support=token_support,
+                max_results=max_results,
+            )
+            if fallback_rows:
+                ranked_results = fallback_rows
+                display_results = (
+                    _diversify_results(ranked_results, max_results)
+                    if diversify_methods
+                    else ranked_results
+                )
 
     final_verdict = aggregate_full_name_verdict(
         query=name,

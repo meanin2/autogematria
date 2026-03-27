@@ -1,0 +1,389 @@
+{
+  "total_queries": 21,
+  "offset": 0,
+  "limit": null,
+  "changed_count": 0,
+  "negative_regressions": 0,
+  "changed_queries": [],
+  "negative_regression_queries": [],
+  "rows": [
+    {
+      "query": "משה גנדי",
+      "torah": {
+        "verdict": "moderate_evidence",
+        "confidence": 0.745,
+        "total_results": 2,
+        "strongest_method": "SUBSTRING",
+        "strongest_ref": "Exodus 2:10"
+      },
+      "tanakh": {
+        "verdict": "moderate_evidence",
+        "confidence": 0.745,
+        "total_results": 2,
+        "strongest_method": "SUBSTRING",
+        "strongest_ref": "Exodus 2:10"
+      },
+      "changed": false
+    },
+    {
+      "query": "דורית אליסה גינדי",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "אליהו יוברמן",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "גלעוז מנדבלום",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "גלעוז קליינבלום",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "זדקיה ארגלר",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "זצזק גדטהנ",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "טדמת אירקנו",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "יעהלצ צשבמע",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "יצחק קעסאומ",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "יצחק שמאגעגקן",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "יצחק תנארקמ",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "לאזו דוכהצח",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "מאיר זכחבלן",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "מאיר פחסהעומ",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "פתקחמ חהעבד",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "קפאנק צשכאמע",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "רסזצת הקנטער",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "רפדון קליינסקי",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "רפדון רוזנברג",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    },
+    {
+      "query": "רפדון רוזנלר",
+      "torah": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "tanakh": {
+        "verdict": "no_convincing_evidence",
+        "confidence": 0.0,
+        "total_results": 0,
+        "strongest_method": null,
+        "strongest_ref": null
+      },
+      "changed": false
+    }
+  ]
+}

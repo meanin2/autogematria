@@ -1,0 +1,50 @@
+{
+  "baseline_score": 311.0,
+  "best_score": 314.0,
+  "improvement": 3.0,
+  "experiments_run": 501,
+  "best_params": {
+    "base_score": 0.26,
+    "freq_scale": 4.8,
+    "freq_cap": 0.3,
+    "exact_bonus": 0.18,
+    "anagram_bonus": 0.24,
+    "edit_bonus": 0.02,
+    "source_backed_bonus": 0.28,
+    "source_pair_bonus": 0.42
+  },
+  "best_details": {
+    "score": 314.0,
+    "positive_points": 314,
+    "negative_penalty": 0,
+    "positive_cases": 14,
+    "negative_cases": 10,
+    "positive_hit_rate": 1.0,
+    "negative_flag_rate": 0.0,
+    "score_params": {
+      "base_score": 0.26,
+      "freq_scale": 4.8,
+      "freq_cap": 0.3,
+      "exact_bonus": 0.18,
+      "anagram_bonus": 0.24,
+      "edit_bonus": 0.02,
+      "source_backed_bonus": 0.28,
+      "source_pair_bonus": 0.42
+    }
+  },
+  "direction_avg_score": {
+    "balanced": 307.1277,
+    "frequency_constrained": 304.8952,
+    "lexical_boosted": 305.9692,
+    "source_weighted": 312.3674
+  },
+  "top_50_direction_avg": {
+    "source_weighted": 314.0,
+    "balanced": 314.0,
+    "frequency_constrained": 314.0,
+    "lexical_boosted": 314.0
+  },
+  "next_direction": "source_weighted",
+  "kept_count": 2,
+  "generated_at": "2026-03-27T11:37:27+03:00"
+}
