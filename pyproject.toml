@@ -12,7 +12,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov", "ruff"]
-mcp = ["fastmcp>=0.4"]
 
 [project.scripts]
 ag-download = "autogematria.download:main"
@@ -20,6 +19,16 @@ ag-ingest = "autogematria.ingest:main"
 ag-index = "autogematria.gematria_index:main"
 ag-search = "autogematria.search.unified:main"
 ag-verify = "autogematria.tools.verify_cli:main"
+ag-search-name = "autogematria.tools.cli_entrypoints:search_name_main"
+ag-lookup-gematria = "autogematria.tools.cli_entrypoints:lookup_gematria_main"
+ag-search-gematria-patterns = "autogematria.tools.cli_entrypoints:search_gematria_patterns_main"
+ag-explore-gematria-connections = "autogematria.tools.cli_entrypoints:explore_gematria_connections_main"
+ag-read-verse = "autogematria.tools.cli_entrypoints:read_verse_main"
+ag-inspect-els = "autogematria.tools.cli_entrypoints:inspect_els_main"
+ag-corpus-stats = "autogematria.tools.cli_entrypoints:corpus_stats_main"
+ag-show-name = "autogematria.tools.cli_entrypoints:show_name_main"
+ag-research-name = "autogematria.tools.research_cli:main"
+ag-serve-api = "autogematria.tools.api_server:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]

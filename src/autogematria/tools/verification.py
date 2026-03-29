@@ -5,6 +5,9 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from hebrew import Hebrew
+from hebrew.gematria import GematriaTypes
+
 from autogematria.normalize import FinalsPolicy, extract_letters
 from autogematria.search.base import SearchResult
 
@@ -20,6 +23,8 @@ def build_verification_payload(conn: sqlite3.Connection, result: SearchResult) -
         if mode == "cross_word":
             return _verify_substring_cross_word(conn, result)
         return _verify_substring_within_word(conn, result)
+    if result.method == "GEMATRIA":
+        return _verify_gematria(conn, result)
     return {"verified": False, "reason": f"Unsupported method {result.method}"}
 
 
@@ -243,4 +248,115 @@ def _verify_substring_cross_word(conn: sqlite3.Connection, result: SearchResult)
         "verse_text_raw": verse_row["text_raw"],
         "verse_text_normalized": verse_row["text_normalized"],
         "span_words": span_words,
+    }
+
+
+def _verify_gematria(conn: sqlite3.Connection, result: SearchResult) -> dict[str, Any]:
+    mode = str(result.params.get("mode", ""))
+    method_name = str(result.params.get("gematria_method", "MISPAR_HECHRACHI"))
+    gtype = getattr(GematriaTypes, method_name, GematriaTypes.MISPAR_HECHRACHI)
+    query_value = int(result.params.get("query_value") or 0)
+    if mode == "exact_word":
+        return _verify_gematria_exact_word(conn, result, gtype, method_name, query_value)
+    if mode == "contiguous_span":
+        return _verify_gematria_span(conn, result, gtype, method_name, query_value)
+    return {"verified": False, "reason": f"Unsupported gematria mode {mode}"}
+
+
+def _verify_gematria_exact_word(
+    conn: sqlite3.Connection,
+    result: SearchResult,
+    gtype,
+    method_name: str,
+    query_value: int,
+) -> dict[str, Any]:
+    abs_word_idx = result.params.get("start_word_index") or result.location_start.word_index
+    if not isinstance(abs_word_idx, int):
+        return {"verified": False, "reason": "Missing word index for gematria exact-word match"}
+
+    row = conn.execute(
+        "SELECT w.word_raw, w.word_normalized, w.absolute_word_index, "
+        "b.api_name, c.chapter_num, v.verse_num "
+        "FROM words w "
+        "JOIN verses v ON w.verse_id = v.verse_id "
+        "JOIN chapters c ON v.chapter_id = c.chapter_id "
+        "JOIN books b ON c.book_id = b.book_id "
+        "WHERE w.absolute_word_index = ?",
+        (abs_word_idx,),
+    ).fetchone()
+    if row is None:
+        return {"verified": False, "reason": f"Word index not found: {abs_word_idx}"}
+
+    value = int(Hebrew(str(row["word_raw"])).gematria(gtype))
+    return {
+        "verified": value == query_value,
+        "method": "GEMATRIA",
+        "mode": "exact_word",
+        "gematria_method": method_name,
+        "query_value": query_value,
+        "matched_value": value,
+        "word": {
+            "absolute_word_index": row["absolute_word_index"],
+            "raw": row["word_raw"],
+            "normalized": row["word_normalized"],
+            "ref": f"{row['api_name']} {row['chapter_num']}:{row['verse_num']}",
+        },
+    }
+
+
+def _verify_gematria_span(
+    conn: sqlite3.Connection,
+    result: SearchResult,
+    gtype,
+    method_name: str,
+    query_value: int,
+) -> dict[str, Any]:
+    start_word_idx = result.params.get("start_word_index") or result.location_start.word_index
+    end_word_idx = result.params.get("end_word_index")
+    if result.location_end is not None and result.location_end.word_index is not None:
+        end_word_idx = result.location_end.word_index
+    if not isinstance(start_word_idx, int) or not isinstance(end_word_idx, int):
+        return {"verified": False, "reason": "Missing word span for gematria contiguous-span match"}
+
+    lo = min(start_word_idx, end_word_idx)
+    hi = max(start_word_idx, end_word_idx)
+    rows = conn.execute(
+        "SELECT w.absolute_word_index, w.word_raw, w.word_normalized, "
+        "b.api_name, c.chapter_num, v.verse_num "
+        "FROM words w "
+        "JOIN verses v ON w.verse_id = v.verse_id "
+        "JOIN chapters c ON v.chapter_id = c.chapter_id "
+        "JOIN books b ON c.book_id = b.book_id "
+        "WHERE w.absolute_word_index BETWEEN ? AND ? "
+        "ORDER BY w.absolute_word_index",
+        (lo, hi),
+    ).fetchall()
+    if not rows:
+        return {"verified": False, "reason": "No words found for gematria span"}
+
+    words = []
+    total = 0
+    for row in rows:
+        value = int(Hebrew(str(row["word_raw"])).gematria(gtype))
+        total += value
+        words.append(
+            {
+                "absolute_word_index": row["absolute_word_index"],
+                "word_raw": row["word_raw"],
+                "word_normalized": row["word_normalized"],
+                "value": value,
+                "ref": f"{row['api_name']} {row['chapter_num']}:{row['verse_num']}",
+            }
+        )
+
+    return {
+        "verified": total == query_value,
+        "method": "GEMATRIA",
+        "mode": "contiguous_span",
+        "gematria_method": method_name,
+        "query_value": query_value,
+        "matched_value": total,
+        "start_word_index": lo,
+        "end_word_index": hi,
+        "words": words,
     }

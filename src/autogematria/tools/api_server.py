@@ -1,154 +1,205 @@
-"""Lightweight HTTP API for the AutoGematria pipeline.
-
-Runs on port 8077, exposes a single endpoint for name search.
-Designed to be called from the WhatsApp bridge container.
-"""
+"""Deployable HTTP API for AutoGematria agent access."""
 
 from __future__ import annotations
 
+import argparse
 import json
-import sys
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any
 from urllib.parse import urlparse
 
-from autogematria.tools.pipeline import find_name_full_report
+from autogematria.tools.agent_site import (
+    build_agent_html,
+    build_agent_manifest,
+    build_agent_text,
+)
+from autogematria.tools.tool_functions import find_name_in_torah, showcase_name
 
 
-PORT = 8077
+DEFAULT_PORT = 8080
 
 
-class GematriaHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        if parsed.path == "/health":
-            self._json_response({"status": "ok"})
-            return
-        self._json_response({"error": "Use POST /search"}, 404)
+def _normalize_bool(value: Any, *, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in {"0", "false", "no", "off"}
+    return bool(value)
 
-    def do_POST(self):
-        parsed = urlparse(self.path)
 
-        if parsed.path == "/search":
-            content_len = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(content_len)) if content_len else {}
-            name = body.get("name", "")
-            book = body.get("book")
-            els_max_skip = body.get("els_max_skip", 500)
-            corpus_scope = body.get("corpus_scope", "torah")
+def _build_routes() -> dict[str, dict[str, Any]]:
+    return {
+        "/health": {
+            "GET": lambda _body: {"status": "ok"},
+        },
+        "/": {
+            "GET": lambda _body: {
+                "service": "autogematria",
+                "status": "ok",
+                "endpoints": {
+                    "GET /health": "Health check",
+                    "POST /api/showcase-name": "Curated presentable result",
+                    "POST /api/search-name": "Direct multi-method search result",
+                },
+            },
+        },
+        "/api/showcase-name": {
+            "POST": lambda body: showcase_name(
+                body["query"],
+                corpus_scope=body.get("corpus_scope", "torah"),
+                include_tanakh_expansion=_normalize_bool(
+                    body.get("include_tanakh_expansion"),
+                    default=True,
+                ),
+                methods=body.get("methods"),
+                max_variants=int(body.get("max_variants", 8)),
+                max_tasks=int(body.get("max_tasks", 40)),
+                max_results_per_task=int(body.get("max_results_per_task", 6)),
+                els_max_skip=int(body.get("els_max_skip", 60)),
+                gematria_methods=body.get("gematria_methods"),
+                max_gematria_span_words=int(body.get("max_gematria_span_words", 3)),
+            ),
+        },
+        "/api/search-name": {
+            "POST": lambda body: find_name_in_torah(
+                name=body["query"],
+                methods=body.get("methods"),
+                book=body.get("book"),
+                max_results=int(body.get("max_results", 20)),
+                els_max_skip=int(body.get("els_max_skip", 500)),
+                include_verification=_normalize_bool(
+                    body.get("include_verification"),
+                    default=True,
+                ),
+                corpus_scope=body.get("corpus_scope", "torah"),
+            ),
+        },
+    }
 
-            if not name:
-                self._json_response({"error": "name is required"}, 400)
-                return
 
-            try:
-                report = find_name_full_report(
-                    name,
-                    book=book,
-                    corpus_scope=corpus_scope,
-                    els_max_skip=els_max_skip,
-                    max_results=15,
-                )
-                # Format a human-readable summary
-                summary = format_report(report)
-                self._json_response({"name": name, "summary": summary, "data": report})
-            except Exception as e:
-                self._json_response({"error": str(e)}, 500)
-            return
+class AutoGematriaHandler(BaseHTTPRequestHandler):
+    routes = _build_routes()
+    token_env_var = "AUTOGEMATRIA_API_TOKEN"
 
-        self._json_response({"error": "Not found"}, 404)
+    def do_GET(self) -> None:  # noqa: N802
+        self._dispatch("GET")
 
-    def _json_response(self, data, code=200):
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
+    def do_POST(self) -> None:  # noqa: N802
+        self._dispatch("POST")
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
+        self._set_headers("application/json")
         self.end_headers()
-        self.wfile.write(json.dumps(data, ensure_ascii=False, default=str).encode("utf-8"))
 
-    def log_message(self, format, *args):
-        pass  # Suppress default logging
+    def _dispatch(self, method: str) -> None:
+        parsed = urlparse(self.path)
+        if method == "GET" and parsed.path == "/for-agents":
+            self._html_response(build_agent_html(self._base_url()))
+            return
+        if method == "GET" and parsed.path == "/agent.txt":
+            self._text_response(build_agent_text(self._base_url()))
+            return
+        if method == "GET" and parsed.path == "/.well-known/autogematria-agent.json":
+            self._json_response(build_agent_manifest(self._base_url()))
+            return
+        route = self.routes.get(parsed.path)
+        if route is None or method not in route:
+            self._json_response({"error": "Not found"}, status=404)
+            return
+        if not self._authorize():
+            self._json_response({"error": "Unauthorized"}, status=401)
+            return
+        try:
+            body = self._read_json_body() if method == "POST" else {}
+            payload = route[method](body)
+        except KeyError as exc:
+            self._json_response({"error": f"Missing required field: {exc.args[0]}"}, status=400)
+            return
+        except ValueError as exc:
+            self._json_response({"error": str(exc)}, status=400)
+            return
+        except Exception as exc:  # pragma: no cover - defensive error boundary
+            self._json_response({"error": str(exc)}, status=500)
+            return
+        self._json_response(payload)
+
+    def _authorize(self) -> bool:
+        expected = os.environ.get(self.token_env_var)
+        if not expected:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            return auth[len("Bearer ") :] == expected
+        return self.headers.get("X-API-Key") == expected
+
+    def _read_json_body(self) -> dict[str, Any]:
+        content_len = int(self.headers.get("Content-Length", "0"))
+        if content_len <= 0:
+            return {}
+        raw = self.rfile.read(content_len)
+        if not raw:
+            return {}
+        return json.loads(raw.decode("utf-8"))
+
+    def _set_headers(self, content_type: str) -> None:
+        self.send_header("Content-Type", content_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+    def _base_url(self) -> str:
+        proto = self.headers.get("X-Forwarded-Proto") or "http"
+        host = self.headers.get("Host") or f"127.0.0.1:{self.server.server_port}"
+        return f"{proto}://{host}"
+
+    def _json_response(self, payload: dict[str, Any], *, status: int = 200) -> None:
+        encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+        self.send_response(status)
+        self._set_headers("application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _text_response(self, payload: str, *, status: int = 200) -> None:
+        encoded = payload.encode("utf-8")
+        self.send_response(status)
+        self._set_headers("text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _html_response(self, payload: str, *, status: int = 200) -> None:
+        encoded = payload.encode("utf-8")
+        self.send_response(status)
+        self._set_headers("text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
 
 
-def format_report(report: dict) -> str:
-    """Format a pipeline report into a WhatsApp-friendly text summary."""
-    lines = []
-    name = report.get("name", "")
-    lines.append(f"*{name} in the Torah*\n")
-
-    # Gematria
-    gem = report.get("gematria", {})
-    std = gem.get("MISPAR_HECHRACHI", {})
-    if std:
-        equivs = std.get("equivalents", [])[:4]
-        lines.append(f"*Gematria:* {std.get('value', '?')}")
-        if equivs:
-            lines.append(f"  Equivalent words: {', '.join(equivs)}")
-        related = std.get("related_words", [])[:4]
-        if related:
-            lines.append(f"  Related connections: {', '.join(related)}")
-        sources = std.get("source_matches", [])[:3]
-        if sources:
-            lines.append(f"  Source-backed links: {', '.join(sources)}")
-
-    # Word gematria for multi-word names
-    wg = report.get("word_gematria")
-    if wg:
-        for word, info in wg.items():
-            equivs = info.get("equivalents", [])[:3]
-            lines.append(f"  _{word}_ = {info.get('value', '?')} ({', '.join(equivs)})")
-
-    # Other gematria methods
-    for method in ["MISPAR_KATAN", "ATBASH"]:
-        m = gem.get(method, {})
-        if m:
-            lines.append(f"  {method.replace('MISPAR_', '')}: {m.get('value', '?')}")
-
-    # Search results
-    results = report.get("search_results", {}).get("results", [])
-    if results:
-        lines.append(f"\n*Findings ({len(results)} total):*")
-        for i, r in enumerate(results[:8], 1):
-            loc = r.get("location", {})
-            ref = f"{loc.get('book', '?')} {loc.get('chapter', '?')}:{loc.get('verse', '?')}"
-            method = r.get("method", "?")
-            if method == "ELS":
-                skip = r.get("params", {}).get("skip", "?")
-                lines.append(f"  {i}. ELS skip {skip} — {ref}")
-            elif method == "SUBSTRING":
-                lines.append(f"  {i}. Direct text — {ref}")
-                if r.get("context"):
-                    ctx = r["context"][:60] + "..." if len(r["context"]) > 60 else r["context"]
-                    lines.append(f"     _{ctx}_")
-            elif method in ("ROSHEI_TEVOT", "SOFEI_TEVOT"):
-                label = "First letters" if method == "ROSHEI_TEVOT" else "Last letters"
-                lines.append(f"  {i}. {label} — {ref}")
-                if r.get("context"):
-                    lines.append(f"     _{r['context'][:60]}_")
-            else:
-                lines.append(f"  {i}. {method} — {ref}")
-
-    # Word results for multi-word names
-    wr = report.get("word_results")
-    if wr:
-        for word, wresults in wr.items():
-            hits = wresults.get("results", [])
-            if hits:
-                lines.append(f"\n*{word}* ({len(hits)} findings):")
-                for r in hits[:3]:
-                    loc = r.get("location", {})
-                    ref = f"{loc.get('book', '?')} {loc.get('chapter', '?')}:{loc.get('verse', '?')}"
-                    lines.append(f"  [{r.get('method', '?')}] {ref}")
-
-    return "\n".join(lines)
+def create_server(port: int) -> ThreadingHTTPServer:
+    return ThreadingHTTPServer(("0.0.0.0", port), AutoGematriaHandler)
 
 
-def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
-    server = HTTPServer(("0.0.0.0", port), GematriaHandler)
-    print(f"AutoGematria API running on port {port}")
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="ag-serve-api")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", DEFAULT_PORT)))
+    args = parser.parse_args()
+    server = create_server(args.port)
+    print(f"AutoGematria API listening on 0.0.0.0:{args.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
-    server.server_close()
+    finally:
+        server.server_close()
 
 
 if __name__ == "__main__":

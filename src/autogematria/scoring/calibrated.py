@@ -143,6 +143,13 @@ def _match_type(result: SearchResult, is_multi_word_query: bool) -> str:
         return "acrostic"
     if result.method == "ELS":
         return "els"
+    if result.method == "GEMATRIA":
+        mode = str(result.params.get("mode", "exact_word"))
+        if mode == "exact_word":
+            return "gematria_exact_word"
+        if mode == "contiguous_span":
+            return "gematria_span"
+        return "gematria"
     return "other"
 
 
@@ -357,6 +364,27 @@ def score_candidates(
                         f"ELS skip={skip_size}, compactness={compactness:.4f}, "
                         f"rarity_p={null_rarity_p:.4f}"
                     )
+                elif result.method == "GEMATRIA":
+                    gematria_mode = str(result.params.get("mode", "exact_word"))
+                    word_span = int(result.params.get("word_span") or max(query_len, 1))
+                    gematria_method = str(result.params.get("gematria_method", "MISPAR_HECHRACHI"))
+                    if gematria_mode == "exact_word":
+                        score = 0.56
+                        if gematria_method == "MISPAR_HECHRACHI":
+                            score += 0.06
+                        rationale = f"gematria exact-word match via {gematria_method}"
+                    else:
+                        score = 0.44
+                        score += min(0.1, max(0, query_len - 3) * 0.02)
+                        score -= min(0.12, max(0, word_span - 2) * 0.03)
+                        if gematria_method == "MISPAR_HECHRACHI":
+                            score += 0.04
+                        rationale = (
+                            f"gematria contiguous-span match via {gematria_method} "
+                            f"over {word_span} words"
+                        )
+                    if is_multi_word_query and gematria_mode != "contiguous_span":
+                        score -= 0.04
                 else:
                     score = 0.2
                     rationale = "unsupported method type"

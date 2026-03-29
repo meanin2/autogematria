@@ -157,23 +157,97 @@ python -m autogematria.tools.pipeline "אברהם" Genesis
 
 This runs all search methods + gematria across multiple methods, and for multi-word names searches each word separately too.
 
-## MCP Server
+## CLI Tools
 
-Expose all tools for LLM agents via MCP:
+The repo now exposes its higher-level tool surface via CLI instead of MCP:
 
 ```bash
-pip install fastmcp
-python -m autogematria.tools.mcp_server
-# Server runs on http://127.0.0.1:8087/sse
+ag-search-name "משה" --json
+ag-lookup-gematria "משה" --json
+ag-search-gematria-patterns "בראשית ברא" --json
+ag-explore-gematria-connections "משה" --json
+ag-read-verse Genesis 1 1 --json
+ag-inspect-els "תורה" 50 5 --json
+ag-corpus-stats --json
+ag-show-name "משה" --json
+ag-show-name "משה" --html-out exports/moshe.html
+ag-research-name "moshe gindi" --json
+ag-serve-api --port 8080
 ```
 
-**6 MCP tools:**
-- `search_name` — find a name using all methods
-- `lookup_gematria` — compute gematria + find equivalent words
-- `explore_gematria_connections` — source-backed and graph-ranked gematria links
-- `read_verse` — get a verse with word-by-word gematria
-- `inspect_els` — letter-by-letter ELS breakdown
-- `get_corpus_stats` — corpus summary
+## Agent API
+
+If you want other agents to call the system over HTTP instead of shelling into the CLI, run the API server:
+
+```bash
+ag-serve-api --port 8080
+```
+
+Endpoints:
+
+```bash
+curl http://localhost:8080/health
+
+curl http://localhost:8080/for-agents
+curl http://localhost:8080/agent.txt
+curl http://localhost:8080/.well-known/autogematria-agent.json
+
+curl -X POST http://localhost:8080/api/showcase-name \
+  -H "Content-Type: application/json" \
+  -d '{"query":"משה"}'
+
+curl -X POST http://localhost:8080/api/search-name \
+  -H "Content-Type: application/json" \
+  -d '{"query":"משה","corpus_scope":"torah"}'
+```
+
+Set `AUTOGEMATRIA_API_TOKEN` to require `Authorization: Bearer <token>` or `X-API-Key: <token>` on every request.
+
+The intended external-agent flow is:
+
+1. Send the agent to `/for-agents` or `/agent.txt`.
+2. Let it read the discovery/instruction surface.
+3. Have it call `/api/showcase-name` or `/api/search-name`.
+
+## Container Deploy
+
+The repo now includes a `Dockerfile` that packages the code and bundled SQLite corpus into a single service image. That makes it straightforward to deploy on a container host such as Render, Cloud Run, or Fly.io.
+
+Local container smoke test:
+
+```bash
+docker build -t autogematria-api .
+docker run --rm -p 8080:8080 autogematria-api
+```
+
+## Public Agent Entry Point
+
+If you want users to tell their AI system "go to this website and use it", the clean setup is:
+
+1. Run the API on your own server or a container host.
+2. Put Cloudflare or another reverse proxy in front of it.
+3. Give agents a single public URL such as `https://tanakh.example.com/for-agents`.
+
+That public entry point should be the canonical instruction surface. It explains the workflow and links to:
+
+- `/for-agents` for branded HTML instructions
+- `/agent.txt` for plain-text instructions
+- `/.well-known/autogematria-agent.json` for machine-readable discovery
+
+Recommended pattern:
+
+```text
+https://tanakh.example.com/for-agents
+```
+
+Then the agent can discover the API and call:
+
+```text
+POST https://tanakh.example.com/api/showcase-name
+POST https://tanakh.example.com/api/search-name
+```
+
+If you already have a server, the simplest production path is to run the container there and put Cloudflare in front of it. Cloudflare Pages alone is not enough for the live search engine because the app is a Python + SQLite service, not just a static site.
 
 ## Autoresearch Loop
 
@@ -234,7 +308,7 @@ src/autogematria/
   tools/
     tool_functions.py # Typed Python functions for LLM tool-use
     verification.py   # Deterministic per-finding manual verification payloads
-    mcp_server.py     # FastMCP server (port 8087)
+    cli_entrypoints.py # CLI surface mirroring the former tool endpoints
     pipeline.py       # End-to-end "find name" report
 ```
 

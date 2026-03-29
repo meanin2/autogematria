@@ -16,8 +16,11 @@ from hebrew.gematria import GematriaTypes
 from autogematria.config import DB_PATH, normalize_corpus_scope
 from autogematria.gematria_connections import gematria_connections as build_gematria_connections
 from autogematria.normalize import normalize_hebrew, extract_letters, FinalsPolicy
+from autogematria.research import ResearchConfig, run_name_research as run_bounded_name_research
+from autogematria.research.presentation import build_showcase
 from autogematria.scoring.calibrated import CandidateEvidence, score_candidates
 from autogematria.scoring.verdict import aggregate_full_name_verdict, build_token_support
+from autogematria.search.gematria import GematriaSearch
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
 from autogematria.tools.verification import build_verification_payload
 
@@ -330,6 +333,117 @@ def find_name_in_torah(
         "best_evidence": ranked_results[0] if ranked_results else None,
         "word_results": token_results if token_results else None,
         "final_verdict": final_verdict,
+    }
+
+
+def gematria_pattern_search(
+    query: str,
+    methods: list[str] | None = None,
+    book: str | None = None,
+    max_results: int = 20,
+    max_span_words: int = 4,
+    include_verification: bool = True,
+    corpus_scope: str = "torah",
+) -> dict[str, Any]:
+    """Search the corpus by gematria value/signature using bounded, traceable methods."""
+    scope = normalize_corpus_scope(corpus_scope)
+    searcher = GematriaSearch(DB_PATH)
+    raw_results = searcher.search(
+        query,
+        methods=methods,
+        book=book,
+        max_results=max_results,
+        max_span_words=max_span_words,
+        corpus_scope=scope,
+    )
+
+    verify_conn = _conn() if include_verification else None
+    candidates: list[CandidateEvidence] = []
+    try:
+        for row in raw_results:
+            verification_payload = None
+            if verify_conn is not None:
+                verification_payload = build_verification_payload(verify_conn, row)
+            candidates.append(CandidateEvidence(result=row, verification=verification_payload))
+    finally:
+        if verify_conn is not None:
+            verify_conn.close()
+
+    scored = score_candidates(query, candidates, corpus_scope=scope)
+    results = [_pack_scored_candidate(item) for item in scored[:max_results]]
+    return {
+        "query": query,
+        "query_normalized": extract_letters(query, FinalsPolicy.NORMALIZE),
+        "book_filter": book,
+        "corpus_scope": scope,
+        "methods_requested": methods or ["MISPAR_HECHRACHI"],
+        "max_span_words": max_span_words,
+        "total_results": len(results),
+        "results": results,
+        "best_evidence": results[0] if results else None,
+    }
+
+
+def run_name_research(
+    query: str,
+    *,
+    corpus_scope: str = "torah",
+    include_tanakh_expansion: bool = True,
+    methods: list[str] | None = None,
+    max_variants: int = 16,
+    max_tasks: int = 80,
+    max_results_per_task: int = 12,
+    els_max_skip: int = 120,
+    gematria_methods: list[str] | None = None,
+    max_gematria_span_words: int = 4,
+) -> dict[str, Any]:
+    """Run the bounded multi-method research workflow."""
+    text_methods = tuple(method for method in (methods or ("substring", "roshei_tevot", "sofei_tevot", "els", "gematria")) if method != "gematria")
+    corpus_scopes = (corpus_scope, "tanakh") if include_tanakh_expansion and corpus_scope == "torah" else (corpus_scope,)
+    config = ResearchConfig(
+        text_methods=text_methods or ResearchConfig().text_methods,
+        max_variants=max_variants,
+        max_tasks=max_tasks,
+        corpus_scopes=corpus_scopes,
+        max_text_results_per_task=max_results_per_task,
+        max_gematria_results_per_task=max_results_per_task,
+        els_max_skip=els_max_skip,
+        gematria_methods=tuple(gematria_methods or ResearchConfig().gematria_methods),
+        max_gematria_span_words=max_gematria_span_words,
+    )
+    return run_bounded_name_research(query, config=config)
+
+
+def showcase_name(
+    query: str,
+    *,
+    corpus_scope: str = "torah",
+    include_tanakh_expansion: bool = True,
+    methods: list[str] | None = None,
+    max_variants: int = 12,
+    max_tasks: int = 60,
+    max_results_per_task: int = 8,
+    els_max_skip: int = 80,
+    gematria_methods: list[str] | None = None,
+    max_gematria_span_words: int = 3,
+) -> dict[str, Any]:
+    """Return a curated, presentable view over the full research ledger."""
+    research = run_name_research(
+        query,
+        corpus_scope=corpus_scope,
+        include_tanakh_expansion=include_tanakh_expansion,
+        methods=methods,
+        max_variants=max_variants,
+        max_tasks=max_tasks,
+        max_results_per_task=max_results_per_task,
+        els_max_skip=els_max_skip,
+        gematria_methods=gematria_methods,
+        max_gematria_span_words=max_gematria_span_words,
+    )
+    return {
+        "query": query,
+        "showcase": build_showcase(research),
+        "research": research,
     }
 
 
