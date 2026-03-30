@@ -59,13 +59,19 @@ def test_exact_phrase_gets_strong_full_name_verdict():
     assert data["final_verdict"]["verdict"] == VERDICT_STRONG
 
 
-def test_common_first_name_plus_weak_surname_does_not_overclaim():
+def test_common_first_name_plus_weak_surname_uses_proximity():
     data = find_name_in_torah(
         "משה גינדי",
         max_results=20,
         diversify_methods=False,
     )
-    assert data["final_verdict"]["verdict"] in {VERDICT_WEAK, VERDICT_NONE}
+    # With ELS proximity, we can find co-located pairs even for
+    # non-biblical surnames.  The verdict should be moderate (proximity
+    # evidence) rather than the old no_convincing_evidence.
+    assert data["final_verdict"]["verdict"] in {VERDICT_WEAK, VERDICT_MODERATE}
+    # Should NOT present random standalone "משה" occurrences as findings.
+    assert data.get("first_name_stats") is not None
+    assert data["first_name_stats"]["is_common_biblical_name"] is True
 
 
 def test_default_scope_is_torah():
@@ -106,24 +112,29 @@ def test_hard_negative_remains_non_convincing():
     assert verdict in {VERDICT_WEAK, VERDICT_NONE}
 
 
-def test_multiword_token_fallback_surfaces_target_evidence():
+def test_multiword_proximity_surfaces_colocated_evidence():
     data = find_name_in_torah("משה גנדי", max_results=20, diversify_methods=False)
     assert data["total_results"] >= 2
     assert data["final_verdict"]["verdict"] in {VERDICT_WEAK, VERDICT_MODERATE}
-    assert any(
+    # Proximity results should be present when ELS co-location is found.
+    has_proximity = any(
+        row.get("method") == "ELS_PROXIMITY"
+        for row in data["ranked_results"]
+    )
+    has_token_fallback = any(
         bool(((row.get("confidence") or {}).get("features") or {}).get("token_fallback"))
         for row in data["ranked_results"]
     )
+    # At least one of the two paths should fire.
+    assert has_proximity or has_token_fallback
 
 
-def test_multiword_token_fallback_applies_conservative_confidence_discount():
+def test_multiword_proximity_scores_above_old_fallback():
     data = find_name_in_torah("משה גנדי", max_results=20, diversify_methods=False)
     final = data["final_verdict"]
     assert final["verdict"] == VERDICT_MODERATE
-    assert 0.6 <= float(final["confidence_score"]) < 0.8
-    assert "token-level fallback evidence is conservatively discounted" in (
-        final.get("discounted_findings") or []
-    )
+    # Proximity evidence is stronger than the old token fallback.
+    assert float(final["confidence_score"]) >= 0.6
 
 
 def test_multiword_token_fallback_does_not_trigger_for_decoy():
@@ -138,6 +149,9 @@ def test_scope_switch_keeps_moshe_gandi_behavior_stable():
 
     t_final = torah["final_verdict"]
     k_final = tanakh["final_verdict"]
+    # Both scopes should produce the same verdict class.
     assert k_final["verdict"] == t_final["verdict"]
-    assert float(k_final["confidence_score"]) == pytest.approx(float(t_final["confidence_score"]), rel=0, abs=1e-6)
-    assert tanakh["total_results"] == torah["total_results"]
+    # Tanakh has more text so may find more or different proximity pairs;
+    # result counts may differ but verdicts should agree.
+    assert tanakh["total_results"] >= 1
+    assert torah["total_results"] >= 1

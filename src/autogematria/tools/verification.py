@@ -25,6 +25,8 @@ def build_verification_payload(conn: sqlite3.Connection, result: SearchResult) -
         return _verify_substring_within_word(conn, result)
     if result.method == "GEMATRIA":
         return _verify_gematria(conn, result)
+    if result.method == "ELS_PROXIMITY":
+        return _verify_els_proximity(conn, result)
     return {"verified": False, "reason": f"Unsupported method {result.method}"}
 
 
@@ -248,6 +250,102 @@ def _verify_substring_cross_word(conn: sqlite3.Connection, result: SearchResult)
         "verse_text_raw": verse_row["text_raw"],
         "verse_text_normalized": verse_row["text_normalized"],
         "span_words": span_words,
+    }
+
+
+def _verify_els_proximity(conn: sqlite3.Connection, result: SearchResult) -> dict[str, Any]:
+    """Verify both ELS components of a proximity pair."""
+    surname_token = result.params.get("surname_token", "")
+    surname_skip = result.params.get("surname_skip")
+    surname_start = result.params.get("surname_start_index")
+    firstname_token = result.params.get("firstname_token", "")
+    firstname_skip = result.params.get("firstname_skip")
+    firstname_start = result.params.get("firstname_start_index")
+    firstname_method = result.params.get("firstname_method", "ELS")
+
+    # Verify surname ELS
+    surname_norm = extract_letters(surname_token, FinalsPolicy.NORMALIZE)
+    surname_verified = False
+    surname_letters: list[dict[str, Any]] = []
+    if isinstance(surname_skip, int) and isinstance(surname_start, int) and surname_norm:
+        for i in range(len(surname_norm)):
+            abs_idx = surname_start + i * surname_skip
+            row = conn.execute(
+                "SELECT l.letter_raw, l.letter_normalized, "
+                "b.api_name, c.chapter_num, v.verse_num "
+                "FROM letters l "
+                "JOIN verses v ON l.verse_id = v.verse_id "
+                "JOIN chapters c ON v.chapter_id = c.chapter_id "
+                "JOIN books b ON c.book_id = b.book_id "
+                "WHERE l.absolute_letter_index = ?",
+                (abs_idx,),
+            ).fetchone()
+            if row is None:
+                break
+            surname_letters.append({
+                "index": abs_idx,
+                "letter_normalized": row["letter_normalized"],
+                "ref": f"{row['api_name']} {row['chapter_num']}:{row['verse_num']}",
+            })
+        actual_surname = "".join(d["letter_normalized"] for d in surname_letters)
+        surname_verified = actual_surname == surname_norm
+
+    # Verify firstname
+    firstname_norm = extract_letters(firstname_token, FinalsPolicy.NORMALIZE)
+    firstname_verified = False
+    firstname_letters: list[dict[str, Any]] = []
+    if isinstance(firstname_start, int) and firstname_norm:
+        if firstname_method == "SUBSTRING" or firstname_skip == 0:
+            # Direct word match -- just check the word exists at this position
+            row = conn.execute(
+                "SELECT w.word_normalized FROM words w "
+                "JOIN letters l ON w.word_id = l.word_id "
+                "WHERE l.absolute_letter_index = ?",
+                (firstname_start,),
+            ).fetchone()
+            firstname_verified = row is not None and firstname_norm in row["word_normalized"]
+        elif isinstance(firstname_skip, int):
+            for i in range(len(firstname_norm)):
+                abs_idx = firstname_start + i * firstname_skip
+                row = conn.execute(
+                    "SELECT l.letter_raw, l.letter_normalized, "
+                    "b.api_name, c.chapter_num, v.verse_num "
+                    "FROM letters l "
+                    "JOIN verses v ON l.verse_id = v.verse_id "
+                    "JOIN chapters c ON v.chapter_id = c.chapter_id "
+                    "JOIN books b ON c.book_id = b.book_id "
+                    "WHERE l.absolute_letter_index = ?",
+                    (abs_idx,),
+                ).fetchone()
+                if row is None:
+                    break
+                firstname_letters.append({
+                    "index": abs_idx,
+                    "letter_normalized": row["letter_normalized"],
+                    "ref": f"{row['api_name']} {row['chapter_num']}:{row['verse_num']}",
+                })
+            actual_fn = "".join(d["letter_normalized"] for d in firstname_letters)
+            firstname_verified = actual_fn == firstname_norm
+
+    return {
+        "verified": surname_verified and firstname_verified,
+        "method": "ELS_PROXIMITY",
+        "proximity_distance": result.params.get("proximity_distance"),
+        "surname": {
+            "token": surname_token,
+            "verified": surname_verified,
+            "skip": surname_skip,
+            "start_index": surname_start,
+            "letters": surname_letters,
+        },
+        "firstname": {
+            "token": firstname_token,
+            "verified": firstname_verified,
+            "method": firstname_method,
+            "skip": firstname_skip,
+            "start_index": firstname_start,
+            "letters": firstname_letters,
+        },
     }
 
 

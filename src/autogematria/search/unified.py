@@ -85,7 +85,7 @@ class UnifiedSearch:
 
 def _sort_key(r: SearchResult) -> tuple[int, float]:
     """Sort order: method priority, then raw_score."""
-    priority = {"SUBSTRING": 0, "ROSHEI_TEVOT": 1, "SOFEI_TEVOT": 2, "ELS": 3}
+    priority = {"SUBSTRING": 0, "ELS_PROXIMITY": 1, "ROSHEI_TEVOT": 2, "SOFEI_TEVOT": 3, "ELS": 4}
     return (priority.get(r.method, 99), r.raw_score)
 
 

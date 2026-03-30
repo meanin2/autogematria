@@ -10,9 +10,10 @@ There is a Jewish tradition that every person's name can be found in the Torah. 
 
 **22 gematria methods** — Standard (Mispar Hechrachi), Gadol, Katan, Siduri, Atbash, Albam, and 16 more, precomputed for all 40,664 unique word forms (894,608 total values).
 
-**4 search methods:**
+**5 search methods:**
 - **Substring** — direct text matching within and across words
 - **ELS** — equidistant letter sequences with fast skip-string search (Boyer-Moore)
+- **ELS Proximity** — co-located ELS pairs for multi-word names (the standard Bible codes methodology)
 - **Roshei Tevot** — first letters of consecutive words
 - **Sofei Tevot** — last letters of consecutive words
 
@@ -48,6 +49,19 @@ ag-search "משה"                         # Default scope: Torah/Chumash only
 ag-search "אברהם" Genesis               # Restrict to one book
 ag-search "משה" --corpus-scope tanakh   # Optional: full Tanakh scope
 ```
+
+### Generate a visual Torah name report
+
+Creates an HTML report with highlighted pesukim showing exactly where the name is encoded, publishes to here.now, and returns the link:
+
+```bash
+ag-name-report "משה גינדי" --publish --json
+ag-name-report "משה גינדי" --variant "משה גנדי" --label "Aleppo spelling" --publish
+```
+
+For multi-word names, the report uses **ELS Proximity Search** — finding regions where both the first name and surname appear encoded near each other in the Torah text. Each finding shows the verse with the exact letters highlighted: gold for the surname's ELS letters, green for the first name.
+
+Common first names (משה, אברהם, דוד, etc.) are not presented as standalone findings — instead, the report notes their frequency as a stat and focuses on where both parts co-locate.
 
 ### Verify findings (deterministic + optional GLM audit)
 
@@ -172,6 +186,7 @@ ag-corpus-stats --json
 ag-show-name "משה" --json
 ag-show-name "משה" --html-out exports/moshe.html
 ag-research-name "moshe gindi" --json
+ag-name-report "משה גינדי" --publish --json
 ag-serve-api --port 8080
 ```
 
@@ -208,6 +223,33 @@ The intended external-agent flow is:
 1. Send the agent to `/for-agents` or `/agent.txt`.
 2. Let it read the discovery/instruction surface.
 3. Have it call `/api/showcase-name` or `/api/search-name`.
+
+## Report API
+
+A lightweight HTTP server for generating reports, used by the WhatsApp agent (Yoni) and other services:
+
+```bash
+python3 serve_report_api.py  # Listens on port 8077
+```
+
+Endpoints:
+
+```bash
+# Health check
+curl http://localhost:8077/health
+
+# Quick text search
+curl -X POST http://localhost:8077/search \
+  -H "Content-Type: application/json" \
+  -d '{"name":"עובדיה יוסף"}'
+
+# Full HTML report with here.now publishing
+curl -X POST http://localhost:8077/report \
+  -H "Content-Type: application/json" \
+  -d '{"name":"משה גינדי","variant":"משה גנדי","label":"Aleppo spelling"}'
+```
+
+Reports are cached by name — repeated requests for the same name return the cached link instantly.
 
 ## Container Deploy
 
@@ -288,6 +330,7 @@ src/autogematria/
   search/
     base.py           # SearchResult, SearchMethod ABC
     els.py            # Equidistant Letter Sequences
+    els_proximity.py  # Co-located ELS pairs for multi-word names
     roshei_tevot.py   # First/last letters of consecutive words
     substring.py      # Direct text matching
     unified.py        # Fan-out across all methods
@@ -308,12 +351,14 @@ src/autogematria/
   tools/
     tool_functions.py # Typed Python functions for LLM tool-use
     verification.py   # Deterministic per-finding manual verification payloads
+    report_builder.py # HTML report generator with highlighted pesukim
     cli_entrypoints.py # CLI surface mirroring the former tool endpoints
     pipeline.py       # End-to-end "find name" report
+serve_report_api.py   # Lightweight HTTP API for report generation (port 8077)
 ```
 
 ## Tests
 
 ```bash
-pytest tests/ -v  # 51 tests
+pytest tests/ -v  # 115 tests
 ```

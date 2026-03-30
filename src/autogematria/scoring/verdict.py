@@ -142,6 +142,15 @@ def aggregate_full_name_verdict(
             and bool((row.get("verification") or {}).get("verified"))
             for row in ranked_results
         )
+        proximity_hit = any(
+            row.get("method") == "ELS_PROXIMITY"
+            for row in ranked_results
+        )
+        best_proximity_score = max(
+            (float((row.get("confidence") or {}).get("score", 0.0) or 0.0)
+             for row in ranked_results if row.get("method") == "ELS_PROXIMITY"),
+            default=0.0,
+        )
         token_fallback_used = any(
             bool((((row.get("confidence") or {}).get("features") or {}).get("token_fallback")))
             for row in ranked_results
@@ -164,7 +173,9 @@ def aggregate_full_name_verdict(
         confidence = 0.7 * strongest_score + 0.3 * supported_ratio
         if full_phrase_hit:
             confidence += 0.2
-        if token_fallback_used and not full_phrase_hit:
+        if proximity_hit:
+            confidence += 0.15
+        if token_fallback_used and not full_phrase_hit and not proximity_hit:
             confidence -= TOKEN_FALLBACK_CONFIDENCE_PENALTY
             discounted.append("token-level fallback evidence is conservatively discounted")
         if surname_only_high_skip_els:
@@ -181,6 +192,12 @@ def aggregate_full_name_verdict(
         if full_phrase_hit:
             verdict = VERDICT_STRONG
             rationale.append("exact full-name phrase evidence was found")
+        elif proximity_hit and best_proximity_score >= 0.72:
+            verdict = VERDICT_MODERATE
+            rationale.append("both name tokens found as co-located ELS encodings")
+        elif proximity_hit and best_proximity_score >= 0.55:
+            verdict = VERDICT_WEAK
+            rationale.append("name tokens found as nearby ELS encodings")
         elif all_tokens_direct and confidence >= 0.62:
             verdict = VERDICT_MODERATE
             rationale.append("all name tokens have direct support")

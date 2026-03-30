@@ -29,6 +29,7 @@ ag-corpus-stats = "autogematria.tools.cli_entrypoints:corpus_stats_main"
 ag-show-name = "autogematria.tools.cli_entrypoints:show_name_main"
 ag-research-name = "autogematria.tools.research_cli:main"
 ag-serve-api = "autogematria.tools.api_server:main"
+ag-name-report = "autogematria.tools.report_builder:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]

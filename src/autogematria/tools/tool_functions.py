@@ -21,7 +21,9 @@ from autogematria.research.presentation import build_showcase
 from autogematria.scoring.calibrated import CandidateEvidence, score_candidates
 from autogematria.scoring.verdict import aggregate_full_name_verdict, build_token_support
 from autogematria.search.gematria import GematriaSearch
+from autogematria.search.els_proximity import find_proximity_pairs
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
+from autogematria.scoring.verdict import COMMON_FIRST_NAMES
 from autogematria.tools.verification import build_verification_payload
 
 
@@ -49,7 +51,7 @@ def _diversify_results(results, max_results: int):
     if not results:
         return []
 
-    method_order = ["SUBSTRING", "ROSHEI_TEVOT", "SOFEI_TEVOT", "ELS"]
+    method_order = ["SUBSTRING", "ELS_PROXIMITY", "ROSHEI_TEVOT", "SOFEI_TEVOT", "ELS"]
     buckets: dict[str, list] = {m: [] for m in method_order}
     extras: list = []
     for result in results:
@@ -114,7 +116,13 @@ def _build_token_fallback_rows(
     token_support: dict[str, dict[str, Any]],
     max_results: int,
 ) -> list[dict[str, Any]]:
-    """Build conservative multi-word fallback rows from per-token evidence."""
+    """Build conservative multi-word fallback rows from per-token evidence.
+
+    Key policy: common first names (משה, אברהם, etc.) that appear as
+    plain words in the Torah are NOT included as standalone findings.
+    Presenting a random "ויאמר ה' אל משה" as someone's personal source
+    is meaningless.  The surname evidence is what matters.
+    """
     if len(tokens) < 2:
         return []
 
@@ -123,29 +131,27 @@ def _build_token_fallback_rows(
     first_support = token_support.get(first) or {}
     surname_support = token_support.get(surname) or {}
 
-    # Guardrail: only allow fallback when first-name evidence is direct exact.
-    if not bool(first_support.get("has_direct_exact")):
+    # Guardrail: first-name must have some support for fallback to fire.
+    if not bool(first_support.get("has_any_support")):
         return []
 
-    surname_skip = int(surname_support.get("best_skip") or 10_000)
-    surname_score = float(surname_support.get("best_score") or 0.0)
-    surname_quality_signal = bool(surname_support.get("has_direct_exact")) or (
-        surname_support.get("best_method") == "ELS"
-        and bool(surname_support.get("has_any_support"))
-        and surname_score >= 0.58
-        and surname_skip <= 10
-    )
-    if not surname_quality_signal:
-        return []
-
-    if not all(bool(token_support.get(token, {}).get("has_any_support")) for token in tokens):
+    # Surname must have some evidence (ELS or otherwise).
+    if not bool(surname_support.get("has_any_support")):
         return []
 
     rows: list[dict[str, Any]] = []
     for token in tokens:
+        is_common_first = token == first and token in COMMON_FIRST_NAMES
         candidates = (token_results.get(token) or {}).get("results") or []
         if not candidates:
             return []
+
+        if is_common_first:
+            # Do NOT include a random direct-match occurrence of a common
+            # first name.  Skip this token in the results -- its stats
+            # are already captured in token_support.
+            continue
+
         chosen = next(
             (
                 row
@@ -269,6 +275,10 @@ def find_name_in_torah(
     tokens = [t for t in name.split() if t]
     token_results: dict[str, dict[str, Any]] = {}
     token_support: dict[str, dict[str, Any]] = {}
+    first_name_stats: dict[str, Any] | None = None
+    proximity_results: list[dict[str, Any]] = []
+    gematria_links: dict[str, Any] | None = None
+
     if len(tokens) > 1:
         for token in tokens:
             token_result = _run_search_pipeline(
@@ -287,20 +297,110 @@ def find_name_in_torah(
             }
         token_support = build_token_support(token_results, tokens)
 
-        all_tokens_supported = all(v.get("has_any_support") for v in token_support.values())
+        first = tokens[0]
         surname = tokens[-1]
-        surname_support = token_support.get(surname, {})
+        all_tokens_supported = all(v.get("has_any_support") for v in token_support.values())
+        surname_support_info = token_support.get(surname, {})
         surname_only_high_skip_els = (
-            surname_support.get("best_method") == "ELS"
-            and not surname_support.get("has_direct_exact")
-            and int(surname_support.get("best_skip") or 0) >= 80
+            surname_support_info.get("best_method") == "ELS"
+            and not surname_support_info.get("has_direct_exact")
+            and int(surname_support_info.get("best_skip") or 0) >= 80
         )
         for row in ranked_results:
             features = ((row.get("confidence") or {}).get("features") or {})
             features["all_tokens_independently_supported"] = all_tokens_supported
             features["surname_only_high_skip_els"] = surname_only_high_skip_els
 
-        if not ranked_results:
+        # -- ELS PROXIMITY SEARCH --
+        # Find co-located ELS pairs (the core Bible codes method for names)
+        if methods is None or "els" in methods:
+            raw_proximity = find_proximity_pairs(
+                query=name,
+                token_a=first,
+                token_b=surname,
+                els_max_skip=els_max_skip,
+                max_distance=5000,
+                max_results=max_results,
+                corpus_scope=scope,
+            )
+            if raw_proximity:
+                verify_conn = _conn() if include_verification else None
+                prox_candidates = []
+                try:
+                    for pr in raw_proximity:
+                        vp = None
+                        if verify_conn is not None:
+                            vp = build_verification_payload(verify_conn, pr)
+                        prox_candidates.append(CandidateEvidence(result=pr, verification=vp))
+                finally:
+                    if verify_conn is not None:
+                        verify_conn.close()
+                from autogematria.scoring.calibrated import score_candidates
+                prox_scored = score_candidates(name, prox_candidates, corpus_scope=scope)
+                proximity_results = [_pack_scored_candidate(s) for s in prox_scored[:max_results]]
+
+        # -- FIRST NAME STATS (not findings) --
+        # For common first names, report stats instead of random occurrences.
+        if first in COMMON_FIRST_NAMES:
+            first_candidates = (token_results.get(first) or {}).get("results") or []
+            direct_count = sum(
+                1 for r in first_candidates
+                if r.get("method") == "SUBSTRING"
+                and ((r.get("confidence") or {}).get("features") or {}).get("match_type") == "exact_word"
+            )
+            # Get total occurrence count from DB
+            total_occurrences = direct_count
+            try:
+                conn = _conn()
+                norm = extract_letters(first, FinalsPolicy.NORMALIZE)
+                scope_filter = "AND b.category = 'Torah'" if scope == "torah" else ""
+                row = conn.execute(
+                    "SELECT COUNT(*) as cnt FROM words w "
+                    "JOIN verses v ON w.verse_id = v.verse_id "
+                    "JOIN chapters c ON v.chapter_id = c.chapter_id "
+                    "JOIN books b ON c.book_id = b.book_id "
+                    f"WHERE w.word_normalized = ? {scope_filter}",
+                    (norm,),
+                ).fetchone()
+                if row:
+                    total_occurrences = row["cnt"]
+                conn.close()
+            except Exception:
+                pass
+            first_name_stats = {
+                "token": first,
+                "is_common_biblical_name": True,
+                "total_occurrences_in_scope": total_occurrences,
+                "note": (
+                    f"{first} appears {total_occurrences} times in "
+                    f"{'Torah' if scope == 'torah' else 'Tanakh'} as a direct word. "
+                    f"No specific occurrence is chosen as a personal source."
+                ),
+            }
+
+        # -- GEMATRIA CONNECTIONS for surname --
+        # When surname has no direct match, gematria provides a Torah connection.
+        if not surname_support_info.get("has_direct_exact"):
+            try:
+                gematria_links = gematria_lookup(
+                    surname,
+                    method="MISPAR_HECHRACHI",
+                    max_equivalents=10,
+                    include_connections=True,
+                )
+            except Exception:
+                pass
+
+        # -- BUILD FINAL RESULTS --
+        # Proximity pairs take priority over isolated token fallback.
+        if proximity_results:
+            ranked_results = proximity_results + ranked_results
+            display_results = (
+                _diversify_results(ranked_results, max_results)
+                if diversify_methods
+                else ranked_results[:max_results]
+            )
+        elif not ranked_results:
             fallback_rows = _build_token_fallback_rows(
                 tokens=tokens,
                 token_results=token_results,
@@ -322,7 +422,7 @@ def find_name_in_torah(
         corpus_scope=scope,
     )
 
-    return {
+    result: dict[str, Any] = {
         "query": name,
         "query_normalized": extract_letters(name, FinalsPolicy.NORMALIZE),
         "book_filter": book,
@@ -334,6 +434,11 @@ def find_name_in_torah(
         "word_results": token_results if token_results else None,
         "final_verdict": final_verdict,
     }
+    if first_name_stats:
+        result["first_name_stats"] = first_name_stats
+    if gematria_links:
+        result["surname_gematria"] = gematria_links
+    return result
 
 
 def gematria_pattern_search(

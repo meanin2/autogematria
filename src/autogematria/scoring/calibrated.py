@@ -150,6 +150,8 @@ def _match_type(result: SearchResult, is_multi_word_query: bool) -> str:
         if mode == "contiguous_span":
             return "gematria_span"
         return "gematria"
+    if result.method == "ELS_PROXIMITY":
+        return "els_proximity"
     return "other"
 
 
@@ -364,6 +366,38 @@ def score_candidates(
                         f"ELS skip={skip_size}, compactness={compactness:.4f}, "
                         f"rarity_p={null_rarity_p:.4f}"
                     )
+                elif result.method == "ELS_PROXIMITY":
+                    distance = int(result.params.get("proximity_distance") or result.raw_score or 10000)
+                    surname_skip = abs(int(result.params.get("surname_skip") or 100))
+                    firstname_skip = abs(int(result.params.get("firstname_skip") or 0))
+                    # Proximity factor: closer = much better
+                    if distance <= 50:
+                        prox_factor = 1.0
+                    elif distance <= 200:
+                        prox_factor = 0.85
+                    elif distance <= 500:
+                        prox_factor = 0.65
+                    elif distance <= 2000:
+                        prox_factor = 0.40
+                    else:
+                        prox_factor = 0.15
+                    surname_skip_factor = 1.0 - min(surname_skip, 400) / 400
+                    firstname_skip_factor = 1.0 - min(firstname_skip, 400) / 400
+                    score = (
+                        0.30
+                        + 0.30 * prox_factor
+                        + 0.20 * surname_skip_factor
+                        + 0.10 * firstname_skip_factor
+                    )
+                    # Bonus: if first name is a direct match (skip=0), that's ideal
+                    if firstname_skip == 0:
+                        score += 0.08
+                    rationale = (
+                        f"ELS proximity: distance={distance}, "
+                        f"surname_skip={surname_skip}, "
+                        f"firstname_skip={firstname_skip}"
+                    )
+
                 elif result.method == "GEMATRIA":
                     gematria_mode = str(result.params.get("mode", "exact_word"))
                     word_span = int(result.params.get("word_span") or max(query_len, 1))
@@ -427,7 +461,7 @@ def score_candidates(
     finally:
         conn.close()
 
-    method_priority = {"SUBSTRING": 0, "ROSHEI_TEVOT": 1, "SOFEI_TEVOT": 2, "ELS": 3}
+    method_priority = {"SUBSTRING": 0, "ELS_PROXIMITY": 1, "ROSHEI_TEVOT": 2, "SOFEI_TEVOT": 3, "ELS": 4}
     scored.sort(
         key=lambda s: (
             -s.score,
