@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
-from html import escape
+from copy import deepcopy
+from functools import lru_cache
+from html import escape, unescape
 import json
 from pathlib import Path
+import re
 from typing import Any
+
+import httpx
+
+from autogematria.config import SEFARIA_BASE
+from autogematria.tools.tool_functions import get_verse
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_FOOTNOTE_RE = re.compile(r"<i[^>]*class=\"footnote\"[^>]*>.*?</i>", re.IGNORECASE | re.DOTALL)
+_FOOTNOTE_MARKER_RE = re.compile(r"<sup[^>]*class=\"footnote-marker\"[^>]*>.*?</sup>", re.IGNORECASE | re.DOTALL)
+_SPACE_RE = re.compile(r"\s+")
 
 
 def _ref(row: dict[str, Any]) -> str:
@@ -20,19 +34,173 @@ def _tag(row: dict[str, Any]) -> str:
     return f"{method} / {mode}" if mode else str(method)
 
 
+def _strip_html(text: str) -> str:
+    cleaned = _FOOTNOTE_RE.sub(" ", text)
+    cleaned = _FOOTNOTE_MARKER_RE.sub(" ", cleaned)
+    cleaned = _TAG_RE.sub(" ", cleaned)
+    return _SPACE_RE.sub(" ", unescape(cleaned)).strip()
+
+
+@lru_cache(maxsize=256)
+def _fetch_english_chapter(book: str, chapter: int) -> list[str]:
+    url = f"{SEFARIA_BASE}/{book}.{chapter}?commentary=0&context=0"
+    response = httpx.get(url, timeout=20.0)
+    response.raise_for_status()
+    payload = response.json()
+    verses = payload.get("text") or []
+    return [_strip_html(str(verse or "")) for verse in verses]
+
+
+@lru_cache(maxsize=4096)
+def _lookup_verse_context(book: str, chapter: int, verse: int) -> dict[str, str]:
+    local = get_verse(book, chapter, verse)
+    hebrew = str(local.get("text") or "")
+    english = ""
+    try:
+        chapter_text = _fetch_english_chapter(book, chapter)
+        if 1 <= verse <= len(chapter_text):
+            english = chapter_text[verse - 1]
+    except Exception:
+        english = ""
+    return {
+        "ref": f"{book} {chapter}:{verse}",
+        "hebrew": hebrew,
+        "english": english,
+    }
+
+
+def _variant_text(row: dict[str, Any]) -> str:
+    return str(((row.get("variant") or {}).get("text")) or row.get("found_text") or "")
+
+
+def _explain_finding(query: str, row: dict[str, Any], *, is_headline: bool) -> str:
+    method = str(row.get("method") or "")
+    params = row.get("params") or {}
+    mode = str(params.get("mode") or params.get("search_kind") or "")
+    found_text = str(row.get("found_text") or "")
+    variant_text = _variant_text(row)
+    query_note = ""
+    if variant_text and variant_text != query:
+        query_note = (
+            f" The surfaced match is for the token {variant_text!r} from the full input {query!r}, "
+            "not for the entire modern full name as one phrase."
+        )
+
+    if method == "SUBSTRING":
+        if params.get("exact_word_match"):
+            base = f"The name {variant_text!r} appears directly in the verse as an exact word."
+        elif mode == "phrase":
+            base = f"The full phrase {variant_text!r} appears directly in the verse text."
+        elif mode == "cross_word":
+            base = (
+                f"The letters of {variant_text!r} are formed across adjacent words in the verse, "
+                "so this is a cross-word textual match rather than a normal standalone word."
+            )
+        else:
+            base = f"The verse contains a direct textual occurrence of {variant_text!r}."
+        if is_headline:
+            base += " It is the main finding because direct verified text matches outrank acrostic, ELS, and gematria methods."
+        return base + query_note
+
+    if method in {"ROSHEI_TEVOT", "SOFEI_TEVOT"}:
+        edge = "initial" if method == "ROSHEI_TEVOT" else "final"
+        return (
+            f"This is an acrostic-style finding: the {edge} letters of consecutive words spell "
+            f"{variant_text!r}. It is weaker than a direct textual occurrence."
+            + query_note
+        )
+
+    if method == "ELS":
+        skip = params.get("skip")
+        return (
+            f"This is an Equidistant Letter Sequence finding: the letters of {variant_text!r} appear "
+            f"at a constant skip of {skip}. It does not appear as a normal word in the verse."
+            + query_note
+        )
+
+    if method == "GEMATRIA":
+        analysis_method = str(row.get("analysis_method") or "")
+        if mode == "exact_word":
+            return (
+                f"This does not spell {query!r} directly. Instead, the matched word {found_text!r} has the same "
+                f"gematria value under {analysis_method}."
+            )
+        if mode in {"sum", "phrase_total", "contiguous_span"}:
+            return (
+                f"This does not spell {query!r} directly. Instead, the contiguous span {found_text!r} sums to the same "
+                f"gematria total under {analysis_method}."
+            )
+        return (
+            f"This is a gematria-based finding rather than a direct textual one. The match is based on a shared "
+            f"numeric signature under {analysis_method}."
+        )
+
+    return "This finding was surfaced by the research engine, but it does not yet have a specialized explanation."
+
+
+def prepare_showcase_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Attach verse text, translation, and explanations to display-tier findings."""
+    enriched = deepcopy(payload)
+    showcase = enriched["showcase"]
+    query = str(enriched.get("query") or showcase.get("query") or "")
+
+    def enrich_row(row: dict[str, Any], *, is_headline: bool) -> dict[str, Any]:
+        out = deepcopy(row)
+        if "verse_context" not in out:
+            loc = out.get("location") or {}
+            book = loc.get("book")
+            chapter = loc.get("chapter")
+            verse = loc.get("verse")
+            if book and chapter and verse:
+                out["verse_context"] = _lookup_verse_context(str(book), int(chapter), int(verse))
+            else:
+                out["verse_context"] = {"ref": "", "hebrew": "", "english": ""}
+        if not out.get("explanation"):
+            out["explanation"] = _explain_finding(query, out, is_headline=is_headline)
+        return out
+
+    headline = showcase.get("headline")
+    if headline:
+        showcase["headline"] = enrich_row(headline, is_headline=True)
+        showcase["main_finding_explanation"] = showcase["headline"]["explanation"]
+    else:
+        showcase["main_finding_explanation"] = (
+            "No direct presentable finding cleared the threshold, so the page only shows weaker supporting material."
+        )
+
+    for key, is_headline in (
+        ("headline_findings", True),
+        ("supporting_findings", False),
+        ("interesting_findings", False),
+    ):
+        showcase[key] = [enrich_row(row, is_headline=is_headline) for row in showcase.get(key) or []]
+
+    return enriched
+
+
 def _render_rows(rows: list[dict[str, Any]], title: str, tone: str) -> str:
     if not rows:
         return ""
     cards = []
     for row in rows:
+        verse = row.get("verse_context") or {}
         cards.append(
             f"""
             <article class="finding-card {tone}">
               <div class="finding-meta">
                 <span class="pill">{escape(_tag(row))}</span>
-                <span class="ref">{escape(_ref(row))}</span>
+                <span class="ref">{escape(str(verse.get("ref") or _ref(row)))}</span>
               </div>
               <h3 class="finding-text">{escape(str(row.get("found_text") or ""))}</h3>
+              <p class="finding-explainer">{escape(str(row.get("explanation") or ""))}</p>
+              <div class="verse-block">
+                <div class="verse-label">Hebrew Pasuk</div>
+                <p class="verse-hebrew">{escape(str(verse.get("hebrew") or ""))}</p>
+              </div>
+              <div class="verse-block translation">
+                <div class="verse-label">English Translation</div>
+                <p class="verse-english">{escape(str(verse.get("english") or "Translation unavailable."))}</p>
+              </div>
               <p class="finding-score">Confidence {escape(str((row.get("confidence") or {}).get("score")))} </p>
             </article>
             """
@@ -53,11 +221,15 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
     """Render a standalone HTML page for a showcase payload."""
     showcase = payload["showcase"]
     headline = showcase.get("headline") or {}
-    headline_ref = _ref(headline) if headline else ""
+    headline_verse = headline.get("verse_context") or {}
+    headline_ref = headline_verse.get("ref") or (_ref(headline) if headline else "")
     summary = escape(str(showcase.get("summary_line") or ""))
     query = escape(str(payload.get("query") or ""))
     verdict = escape(str(showcase.get("verdict_label") or ""))
     hidden = int(showcase.get("hidden_findings") or 0)
+    main_finding_explanation = escape(str(showcase.get("main_finding_explanation") or ""))
+    headline_hebrew = escape(str(headline_verse.get("hebrew") or ""))
+    headline_english = escape(str(headline_verse.get("english") or "Translation unavailable."))
 
     return f"""<!doctype html>
 <html lang="en">
@@ -88,7 +260,7 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
         linear-gradient(135deg, #f9f3e7 0%, #efe5d1 48%, #f6ecdb 100%);
     }}
     .page {{
-      max-width: 1180px;
+      max-width: 1240px;
       margin: 0 auto;
       padding: 48px 24px 72px;
     }}
@@ -133,7 +305,7 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
     }}
     .hero-grid {{
       display: grid;
-      grid-template-columns: 1.4fr 0.8fr;
+      grid-template-columns: 1.35fr 0.85fr;
       gap: 24px;
       margin-top: 22px;
       align-items: end;
@@ -179,7 +351,7 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
     .headline-panel {{
       margin-top: 28px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1.05fr 0.95fr;
       gap: 18px;
     }}
     .headline-card, .ledger-card {{
@@ -206,6 +378,21 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
     .headline-ref {{
       font-size: 16px;
       color: var(--slate);
+      margin-bottom: 12px;
+    }}
+    .headline-explanation {{
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--ink);
+    }}
+    .headline-verse {{
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(54,67,83,0.12);
+    }}
+    .headline-verse .verse-hebrew {{
+      font-size: 22px;
     }}
     .section-head {{
       display: flex;
@@ -215,13 +402,13 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
     }}
     .finding-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 16px;
     }}
     .finding-card {{
       position: relative;
       overflow: hidden;
-      min-height: 172px;
+      min-height: 340px;
       border-radius: 20px;
       padding: 18px;
       color: white;
@@ -261,8 +448,39 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
       line-height: 1.05;
       font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Garamond, serif;
     }}
+    .finding-explainer {{
+      margin: 0 0 14px;
+      font-size: 15px;
+      line-height: 1.65;
+      opacity: 0.96;
+    }}
+    .verse-block {{
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.18);
+    }}
+    .verse-label {{
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      opacity: 0.78;
+    }}
+    .verse-hebrew, .verse-english {{
+      margin: 8px 0 0;
+      line-height: 1.65;
+    }}
+    .verse-hebrew {{
+      direction: rtl;
+      font-size: 20px;
+      font-family: "David", "Times New Roman", serif;
+    }}
+    .translation {{
+      background: rgba(255,255,255,0.08);
+    }}
     .finding-score {{
-      margin: 0;
+      margin: 14px 0 0;
       font-size: 13px;
       opacity: 0.85;
     }}
@@ -285,6 +503,9 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
       .hero {{
         padding: 26px;
       }}
+      .finding-grid {{
+        grid-template-columns: 1fr;
+      }}
     }}
   </style>
 </head>
@@ -303,7 +524,7 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
             <div class="stat-value">{verdict}</div>
           </div>
           <div class="stat">
-            <div class="stat-label">Headline Ref</div>
+            <div class="stat-label">Main Ref</div>
             <div class="stat-value">{escape(headline_ref or "No direct hit")}</div>
           </div>
           <div class="stat">
@@ -316,13 +537,20 @@ def render_showcase_html(payload: dict[str, Any]) -> str:
 
     <section class="headline-panel">
       <article class="headline-card">
-        <h2>Headline Finding</h2>
+        <h2>Main Finding</h2>
         <div class="headline-big">{escape(str(headline.get("found_text") or "No presentable hit"))}</div>
         <div class="headline-ref">{escape(headline_ref or "No reference available")}</div>
+        <p class="headline-explanation">{main_finding_explanation}</p>
+        <div class="headline-verse">
+          <div class="verse-label">Hebrew Pasuk</div>
+          <p class="verse-hebrew">{headline_hebrew}</p>
+          <div class="verse-label">English Translation</div>
+          <p class="verse-english">{headline_english}</p>
+        </div>
       </article>
       <article class="ledger-card">
-        <h2>How to Read This</h2>
-        <p>This page promotes clean, verified findings first. Direct textual hits are prioritized, while gematria, acrostic, and ELS-style results are kept visible but clearly separated.</p>
+        <h2>Why This Was Chosen</h2>
+        <p>Direct, verified textual matches are promoted first. Acrostic, ELS, and gematria findings stay visible, but they are clearly separated and explained as weaker or indirect methods when applicable.</p>
       </article>
     </section>
 
@@ -343,18 +571,20 @@ def write_showcase_html(payload: dict[str, Any], output_path: str | Path) -> Pat
     """Write a standalone showcase page to disk."""
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_showcase_html(payload), encoding="utf-8")
+    prepared = prepare_showcase_payload(payload)
+    out.write_text(render_showcase_html(prepared), encoding="utf-8")
     return out
 
 
 def write_showcase_site_bundle(payload: dict[str, Any], output_dir: str | Path) -> dict[str, Path]:
     """Write a publishable static site bundle with HTML and machine-readable JSON."""
+    prepared = prepare_showcase_payload(payload)
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     index_path = out_dir / "index.html"
     result_path = out_dir / "result.json"
-    index_path.write_text(render_showcase_html(payload), encoding="utf-8")
-    result_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    index_path.write_text(render_showcase_html(prepared), encoding="utf-8")
+    result_path.write_text(json.dumps(prepared, ensure_ascii=False, indent=2), encoding="utf-8")
     return {
         "directory": out_dir,
         "index_html": index_path,

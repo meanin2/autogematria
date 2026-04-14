@@ -30,6 +30,8 @@ ag-show-name = "autogematria.tools.cli_entrypoints:show_name_main"
 ag-research-name = "autogematria.tools.research_cli:main"
 ag-serve-api = "autogematria.tools.api_server:main"
 ag-name-report = "autogematria.tools.report_builder:main"
+ag-full-report = "autogematria.tools.full_report_cli:main"
+ag-index-report-methods = "autogematria.gematria_report_index:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]

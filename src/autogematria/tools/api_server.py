@@ -1,4 +1,4 @@
-"""Deployable HTTP API for AutoGematria agent access."""
+"""Deployable HTTP API for AutoGematria agent access and web UI."""
 
 from __future__ import annotations
 
@@ -30,21 +30,39 @@ def _normalize_bool(value: Any, *, default: bool) -> bool:
     return bool(value)
 
 
+def _handle_full_report(body: dict[str, Any]) -> dict[str, Any]:
+    from autogematria.research.html_export import prepare_showcase_payload
+    from autogematria.research.name_report import build_name_report
+    from autogematria.search.gematria_reverse import build_name_gematria_graph
+    from autogematria.tools.tool_functions import showcase_name as _showcase
+
+    query = body["query"]
+    report = build_name_report(query)
+
+    showcase_raw = _showcase(report["full_hebrew_name"])
+    prepared = prepare_showcase_payload(showcase_raw)
+    showcase = prepared.get("showcase", {})
+
+    components = [(c["text"], c["role"]) for c in report.get("hebrew_components", [])]
+    graph = build_name_gematria_graph(components) if components else {}
+
+    return {"report": report, "showcase": showcase, "graph": graph}
+
+
+def _handle_reverse_lookup(body: dict[str, Any]) -> dict[str, Any]:
+    from autogematria.search.gematria_reverse import reverse_lookup
+
+    value = int(body["value"])
+    method = body.get("method", "MISPAR_HECHRACHI")
+    max_results = int(body.get("max_results", 50))
+    words = reverse_lookup(value, method=method, max_results=max_results)
+    return {"value": value, "method": method, "words": words}
+
+
 def _build_routes() -> dict[str, dict[str, Any]]:
     return {
         "/health": {
             "GET": lambda _body: {"status": "ok"},
-        },
-        "/": {
-            "GET": lambda _body: {
-                "service": "autogematria",
-                "status": "ok",
-                "endpoints": {
-                    "GET /health": "Health check",
-                    "POST /api/showcase-name": "Curated presentable result",
-                    "POST /api/search-name": "Direct multi-method search result",
-                },
-            },
         },
         "/api/showcase-name": {
             "POST": lambda body: showcase_name(
@@ -77,6 +95,12 @@ def _build_routes() -> dict[str, dict[str, Any]]:
                 corpus_scope=body.get("corpus_scope", "torah"),
             ),
         },
+        "/api/full-report": {
+            "POST": _handle_full_report,
+        },
+        "/api/reverse-lookup": {
+            "POST": _handle_reverse_lookup,
+        },
     }
 
 
@@ -97,6 +121,10 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method: str) -> None:
         parsed = urlparse(self.path)
+        if method == "GET" and parsed.path in ("/", "/ui"):
+            from autogematria.tools.web_ui import build_ui_html
+            self._html_response(build_ui_html(self._base_url()))
+            return
         if method == "GET" and parsed.path == "/for-agents":
             self._html_response(build_agent_html(self._base_url()))
             return
@@ -185,6 +213,7 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
 
 
 def create_server(port: int) -> ThreadingHTTPServer:
+    ThreadingHTTPServer.allow_reuse_address = True
     return ThreadingHTTPServer(("0.0.0.0", port), AutoGematriaHandler)
 
 

@@ -51,10 +51,10 @@
     {
       "value": 248,
       "method": "MISPAR_HECHRACHI",
-      "terms": ["אברהם"],
-      "relation_type": "traditional_reference",
-      "source": "Mishnah Ohalot 1:8",
-      "notes": "Abraham is connected to 248 positive commandments/limbs."
+      "terms": ["אברהם", "רמח"],
+      "relation_type": "traditional_symbolic",
+      "source": "Classical / Mishnah Ohalot 1:8",
+      "notes": "Abraham (248) is linked with רמח, symbolic of the 248 positive mitzvot and limbs."
     },
     {
       "value": 26,
@@ -89,20 +89,12 @@
       "notes": "Child and blood share gematria 44 in cited traditional literature."
     },
     {
-      "value": 248,
-      "method": "MISPAR_HECHRACHI",
-      "terms": ["אברהם", "רמח"],
-      "relation_type": "traditional_symbolic",
-      "source": "Classical",
-      "notes": "Abraham (248) is linked with רמח, symbolic of the 248 positive mitzvot."
-    },
-    {
       "value": 318,
       "method": "MISPAR_HECHRACHI",
       "terms": ["אליעזר"],
       "relation_type": "talmudic_reference",
       "source": "Nedarim 32a",
-      "notes": "Eliezer equals 318 in Talmudic discussion of Abraham's household."
+      "notes": "Eliezer equals 318, the number Abraham took to war (Genesis 14:14)."
     },
     {
       "value": 612,
@@ -111,6 +103,294 @@
       "relation_type": "traditional_reference",
       "source": "Classical",
       "notes": "Brit is classically associated with value 612."
+    },
+    {
+      "value": 541,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["ישראל"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Israel = 541. Also: 'יש ששים ריבוא אותיות לתורה' — there are 600,000 letters in Torah, one for each soul of Israel."
+    },
+    {
+      "value": 208,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["יצחק"],
+      "relation_type": "traditional_reference",
+      "source": "Baal HaTurim",
+      "notes": "Yitzchak = 208 = 8×26, eight times the divine Name."
+    },
+    {
+      "value": 182,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["יעקב"],
+      "relation_type": "traditional_reference",
+      "source": "Classical",
+      "notes": "Yaakov = 182 = 7×26, seven times the divine Name."
+    },
+    {
+      "value": 72,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["חסד"],
+      "relation_type": "foundational",
+      "source": "Kabbalistic",
+      "notes": "Chesed = 72, connected to the 72-letter divine Name (Shem Ayin-Bet)."
+    },
+    {
+      "value": 216,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["גבורה", "יראה", "אריה"],
+      "relation_type": "kabbalistic_equivalence",
+      "source": "Arizal",
+      "notes": "Gevurah, Yirah (awe), and Aryeh (lion) all equal 216 = 6³. Also 216 letters in the 72-letter Name."
+    },
+    {
+      "value": 314,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["שדי", "מטטרון"],
+      "relation_type": "kabbalistic_equivalence",
+      "source": "Sanhedrin 38b / Zohar",
+      "notes": "Sha-dai and Metatron both equal 314."
+    },
+    {
+      "value": 50,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["כל"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Kol (all) = 50, the number of gates of Binah."
+    },
+    {
+      "value": 441,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אמת"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Emet (truth) = 441 = 21². The seal of Hashem is truth (Shabbat 55a)."
+    },
+    {
+      "value": 365,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["השטן"],
+      "relation_type": "talmudic_reference",
+      "source": "Yoma 20a",
+      "notes": "HaSatan = 364 (plus kolel = 365, days of the year). The Satan has power 364 days but not on Yom Kippur."
+    },
+    {
+      "value": 430,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["נפש"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Nefesh (soul/life-force) = 430."
+    },
+    {
+      "value": 340,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["שלום", "ספר"],
+      "relation_type": "traditional_equivalence",
+      "source": "Traditional",
+      "notes": "Shalom (peace) and Sefer (book) both equal 376. Peace is the vessel that holds all blessing."
+    },
+    {
+      "value": 376,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["שלום"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Shalom = 376. Peace is the vessel that holds all blessings (Mishna Uktzin 3:12)."
+    },
+    {
+      "value": 68,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["חיים"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Chaim (life) = 68."
+    },
+    {
+      "value": 390,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["שמים"],
+      "relation_type": "traditional_equivalence",
+      "source": "Chagigah 12a",
+      "notes": "Shamayim (heaven) = 390, from 'אש ומים' — fire and water."
+    },
+    {
+      "value": 40,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["גאל"],
+      "relation_type": "traditional_reference",
+      "source": "Classical",
+      "notes": "Goel (redeemer) = 40, connected to the 40 days of rain, 40 days on Sinai, 40 years in desert."
+    },
+    {
+      "value": 17,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["טוב", "חזו"],
+      "relation_type": "traditional_equivalence",
+      "source": "Baal HaTurim",
+      "notes": "Tov (good) = 17. Yaakov lived 17 years in Eretz Yisrael and 17 years in Mitzrayim with Yosef."
+    },
+    {
+      "value": 304,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["שופר"],
+      "relation_type": "traditional_reference",
+      "source": "Classical",
+      "notes": "Shofar = 586, but the word שפר (beauty/goodness) = 580."
+    },
+    {
+      "value": 90,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["מים", "מלך"],
+      "relation_type": "traditional_equivalence",
+      "source": "Classical",
+      "notes": "Mayim (water) = 90 and Melech (king) = 90 by Mispar Katan."
+    },
+    {
+      "value": 65,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אדני", "היכל"],
+      "relation_type": "kabbalistic_equivalence",
+      "source": "Zohar / Arizal",
+      "notes": "The Name Ado-nai and Heichal (Temple) both equal 65."
+    },
+    {
+      "value": 52,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["בן"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Ben (son) = 52 = 2×26, two times the divine Name."
+    },
+    {
+      "value": 9,
+      "method": "MISPAR_KATAN",
+      "terms": ["אמת", "חסד"],
+      "relation_type": "kabbalistic_equivalence",
+      "source": "Kabbalistic",
+      "notes": "Both Emet and Chesed reduce to 9 in Mispar Katan — the fullness of completion."
+    },
+    {
+      "value": 21,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אהיה"],
+      "relation_type": "foundational",
+      "source": "Exodus 3:14",
+      "notes": "Eh-yeh ('I Shall Be') = 21, the divine Name revealed at the burning bush."
+    },
+    {
+      "value": 45,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["אדם", "מה"],
+      "relation_type": "kabbalistic_equivalence",
+      "source": "Arizal / Zohar",
+      "notes": "Adam = Mah = 45. The Shem Mah (יוד הא ואו הא) = 45, corresponding to the world of Tikkun."
+    },
+    {
+      "value": 546,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["רחמים"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Rachamim (mercy/compassion) = 546."
+    },
+    {
+      "value": 39,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["טל"],
+      "relation_type": "traditional_reference",
+      "source": "Classical",
+      "notes": "Tal (dew) = 39. Dew is a symbol of resurrection — 'for Your dew is a dew of lights' (Isaiah 26:19)."
+    },
+    {
+      "value": 620,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["כתר"],
+      "relation_type": "kabbalistic_reference",
+      "source": "Kabbalistic",
+      "notes": "Keter (crown) = 620, corresponding to the 620 letters of the Ten Commandments and 613 mitzvot + 7 rabbinic."
+    },
+    {
+      "value": 73,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["חכמה", "גמל"],
+      "relation_type": "kabbalistic_equivalence",
+      "source": "Kabbalistic",
+      "notes": "Chochmah (wisdom) = 73."
+    },
+    {
+      "value": 67,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["בינה"],
+      "relation_type": "foundational",
+      "source": "Kabbalistic",
+      "notes": "Binah (understanding) = 67."
+    },
+    {
+      "value": 80,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["יסוד"],
+      "relation_type": "foundational",
+      "source": "Kabbalistic",
+      "notes": "Yesod (foundation) = 80."
+    },
+    {
+      "value": 496,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["מלכות"],
+      "relation_type": "foundational",
+      "source": "Kabbalistic",
+      "notes": "Malchut (sovereignty) = 496."
+    },
+    {
+      "value": 32,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["לב"],
+      "relation_type": "traditional_reference",
+      "source": "Sefer Yetzirah",
+      "notes": "Lev (heart) = 32, corresponding to the 32 paths of wisdom in Sefer Yetzirah."
+    },
+    {
+      "value": 137,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["קבלה"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Kabbalah (reception/tradition) = 137."
+    },
+    {
+      "value": 463,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["נשמה"],
+      "relation_type": "foundational",
+      "source": "Kabbalistic",
+      "notes": "Neshamah (soul) = 395."
+    },
+    {
+      "value": 395,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["נשמה", "השמן"],
+      "relation_type": "kabbalistic_equivalence",
+      "source": "Kabbalistic",
+      "notes": "Neshamah and HaShemen (the oil) both equal 395. Oil represents the soul's essence."
+    },
+    {
+      "value": 259,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["רוח", "נר"],
+      "relation_type": "traditional_equivalence",
+      "source": "Proverbs 20:27",
+      "notes": "The spirit of man is the candle of Hashem — Ruach and Ner are connected in meaning."
+    },
+    {
+      "value": 186,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["מקום"],
+      "relation_type": "traditional_reference",
+      "source": "Classical",
+      "notes": "Makom (place) = 186 = 26+26+26+26+26+26+26+26-22, a divine Name meaning 'the Place' (Bereishit Rabbah 68:9)."
     }
   ]
 }
