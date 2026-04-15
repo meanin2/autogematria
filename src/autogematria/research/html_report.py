@@ -115,7 +115,7 @@ def _css() -> str:
     .gem-table .highlight { background: rgba(184,135,47,0.1); border-radius: 8px; }
 
     /* Letter analysis */
-    .letters-grid { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .letters-grid { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; direction: rtl; }
     .letter-card {
       width: 80px; border-radius: 14px; padding: 10px; text-align: center;
       background: linear-gradient(135deg, #f8f0de, #fdf7ec);

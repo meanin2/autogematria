@@ -145,7 +145,7 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
 .gem-table .val {{ text-align:center; font-weight:600; font-size:14px; font-variant-numeric:tabular-nums; }}
 
 /* Letters */
-.letters-row {{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }}
+.letters-row {{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; direction:rtl; }}
 .letter-card {{
   width:70px; border-radius:12px; padding:8px 4px; text-align:center;
   background:linear-gradient(145deg,#f8f0de,#fdf7ec);
@@ -341,20 +341,24 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
       <span class="logo-sub">Torah Name Analysis</span>
     </div>
     <nav>
-      <button class="active" onclick="showView('search',this)">Analyze</button>
-      <button onclick="showView('reverse',this)">Reverse Lookup</button>
-      <button onclick="showView('about',this)">About</button>
+      <button class="active" onclick="showView('search',this)"
+        title="Enter a full name in Hebrew or English. The engine parses it, computes gematria across six classical methods, searches the Torah for the name via substring, ELS, acrostics, and gematria-equivalent words, and compiles a full kabbalistic analysis.">Analyze</button>
+      <button onclick="showView('reverse',this)"
+        title="Enter any number to find every Tanakh word whose gematria equals that value. Useful when you already know a target value and want to find related words.">Reverse Lookup</button>
+      <button onclick="showView('about',this)"
+        title="About this project, corpus stats, and methodology.">About</button>
     </nav>
   </header>
 
   <div id="view-search">
     <div class="hero-search">
       <div class="hero-title">Find your name in the Torah</div>
-      <div class="hero-desc">Enter a Hebrew or English name. Supports complex structures like "moshe ben yitzchak v'miriam gindi" or "שרה בת אברהם ורבקה כהן".</div>
+      <div class="hero-desc">Enter a Hebrew or English name. Complex structures are supported: first name, patronymic (<em>ben</em> / <em>bat</em>), father, mother, and surname. Example: <code>שרה בת אברהם ורבקה כהן</code>.</div>
       <div class="search-row">
         <input class="search-input" id="name-input" type="text"
           placeholder="Enter a name..." dir="auto" autofocus>
-        <button class="search-btn" id="search-btn" onclick="runSearch()">Analyze Name</button>
+        <button class="search-btn" id="search-btn" onclick="runSearch()"
+          title="Parse the name, compute gematria across six classical methods, search the Torah for direct, ELS, acrostic, and gematria-equivalent appearances, and compile a kabbalistic analysis. Takes about 60–120 seconds.">Analyze Name</button>
       </div>
       <div class="example-names">
         <span class="example-chip" onclick="setExample('דוד בן ישי')">דוד בן ישי</span>
@@ -377,21 +381,36 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
     <div class="card">
       <div class="card-title">Gematria Reverse Lookup</div>
       <p style="color:var(--slate);font-size:13px;margin-bottom:14px;">
-        Enter a number to find all Tanakh words with that gematria value.
+        Enter any number to find every Tanakh word whose gematria equals that value, under the chosen method.
+        Hover the method dropdown for a description of each calculation.
       </p>
       <div class="reverse-input">
         <input type="number" id="reverse-value" placeholder="345" min="1"
+          title="A positive integer. The search returns every Tanakh word form whose gematria under the selected method equals this number."
           onkeydown="if(event.key==='Enter')runReverseLookup()">
-        <select id="reverse-method">
-          <option value="MISPAR_HECHRACHI">Standard</option>
-          <option value="MISPAR_GADOL">Full Value</option>
-          <option value="MISPAR_KATAN">Reduced</option>
-          <option value="MISPAR_SIDURI">Ordinal</option>
-          <option value="ATBASH">AtBash</option>
-          <option value="MISPAR_KOLEL">Kolel</option>
+        <select id="reverse-method"
+          title="The calculation method used to convert each Hebrew word to a number. Hover each option for a short description.">
+          <option value="MISPAR_HECHRACHI" title="Mispar Hechrachi — the classical standard method. Each letter has its absolute numerical value (א=1, ב=2, … י=10, … ק=100, ת=400).">Standard</option>
+          <option value="MISPAR_GADOL" title="Mispar Gadol — like Standard, but the five final letters (ך ם ן ף ץ) take their extended values 500–900 instead of the base 20–90.">Full Value</option>
+          <option value="MISPAR_KATAN" title="Mispar Katan — reduced form. Each letter value is reduced to a single digit (e.g. 200 → 2, 400 → 4).">Reduced</option>
+          <option value="MISPAR_SIDURI" title="Mispar Siduri — ordinal position in the alphabet (א=1, ב=2, … ת=22).">Ordinal</option>
+          <option value="ATBASH" title="AtBash — each letter swaps with its mirror (א↔ת, ב↔ש …), then the standard values are summed. A classical cipher hinted at in Jeremiah.">AtBash</option>
+          <option value="MISPAR_KOLEL" title="Mispar Kolel — Standard value plus the number of letters in the word. Used when a count-of-letters (one for the whole) is considered meaningful.">Kolel</option>
         </select>
-        <button onclick="runReverseLookup()">Search</button>
+        <button onclick="runReverseLookup()"
+          title="Run the reverse lookup and show matching Tanakh words.">Search</button>
       </div>
+      <details style="margin-top:6px;">
+        <summary style="cursor:pointer;font-size:11px;color:var(--slate);">What do the methods mean?</summary>
+        <div style="font-size:12px;color:var(--slate);line-height:1.6;margin-top:8px;padding:10px 14px;background:rgba(0,0,0,0.03);border-radius:12px;">
+          <div><strong>Standard (Mispar Hechrachi):</strong> classical values א=1, ב=2, … ק=100, ת=400. This is what people mean by &ldquo;gematria&rdquo; by default.</div>
+          <div><strong>Full Value (Mispar Gadol):</strong> same as Standard, but the five final letters (ך ם ן ף ץ) take their extended values 500–900.</div>
+          <div><strong>Reduced (Mispar Katan):</strong> each letter reduced to a single digit (e.g. 200 → 2, 400 → 4).</div>
+          <div><strong>Ordinal (Mispar Siduri):</strong> position in the alphabet, א=1 … ת=22.</div>
+          <div><strong>AtBash:</strong> each letter swapped with its mirror (א↔ת, ב↔ש …), then the Standard values are summed.</div>
+          <div><strong>Kolel:</strong> Standard value plus the number of letters in the word.</div>
+        </div>
+      </details>
       <div id="reverse-loading" class="loading hidden"><div class="spinner"></div></div>
       <div id="reverse-results"></div>
     </div>
