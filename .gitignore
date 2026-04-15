@@ -1,5 +1,9 @@
 data/corpus/
 data/autogematria.db
+data/run_log.jsonl
+data/jobs.db
+data/jobs.db-*
+var/
 __pycache__/
 *.pyc
 .venv/
