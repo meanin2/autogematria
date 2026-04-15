@@ -88,6 +88,31 @@ def build_variants(query: str, config: ResearchConfig) -> dict[str, Any]:
             )
         )
 
+    combined_variants: list[ResearchVariant] = []
+    tokens_for_combined = [t for t in normalized.split() if t]
+    if is_hebrew and len(tokens_for_combined) > 1:
+        combined_string = "".join(tokens_for_combined)
+        combined_variants.append(
+            ResearchVariant(
+                text=combined_string,
+                kind="full_name",
+                source="combined_concatenated",
+                token_count=len(tokens_for_combined),
+            )
+        )
+        # Initials (roshei-tevot seed) of the full name.  A single string
+        # search for the initials captures cross-word acrostic matches.
+        initials = "".join(t[0] for t in tokens_for_combined if t)
+        if len(initials) >= 2:
+            combined_variants.append(
+                ResearchVariant(
+                    text=initials,
+                    kind="full_name",
+                    source="full_name_initials",
+                    token_count=len(tokens_for_combined),
+                )
+            )
+
     token_variants: list[ResearchVariant] = []
     tokens = [token for token in normalized.split() if token]
     for idx, token in enumerate(tokens):
@@ -113,12 +138,17 @@ def build_variants(query: str, config: ResearchConfig) -> dict[str, Any]:
             )
         token_variants.extend(_dedupe_variants(per_token)[: config.max_token_variants_per_token])
 
-    all_variants = _dedupe_variants(full_name_variants + token_variants)[: config.max_variants]
+    # Combined variants go first so they take priority inside the
+    # max_variants budget, ensuring the research run always covers the
+    # full combined name string and the roshei-tevot of the full name.
+    all_variants = _dedupe_variants(
+        full_name_variants + combined_variants + token_variants
+    )[: config.max_variants]
     return {
         "query": query,
         "normalized": normalized,
         "normalized_letters": normalized_letters,
-        "full_name_variants": [item.to_dict() for item in full_name_variants],
+        "full_name_variants": [item.to_dict() for item in full_name_variants + combined_variants],
         "token_variants": [item.to_dict() for item in token_variants],
         "all_variants": [item.to_dict() for item in all_variants],
         "tokens": tokens,

@@ -188,54 +188,112 @@ def _interest_score(role_a: str, role_b: str, method_a: str, method_b: str, valu
     return round(score, 3)
 
 
+def _fetch_same_value_words(
+    conn: sqlite3.Connection,
+    *,
+    method_name: str,
+    value: int,
+    exclude_norms: set[str],
+    max_per_component: int,
+) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT wf.form_raw, wf.frequency FROM word_gematria wg "
+        "JOIN word_forms wf ON wg.form_id = wf.form_id "
+        "JOIN gematria_methods gm ON wg.method_id = gm.method_id "
+        "WHERE gm.method_name = ? AND wg.value = ? "
+        "ORDER BY wf.frequency DESC LIMIT ?",
+        (method_name, value, max_per_component + 10),
+    ).fetchall()
+    word_matches: list[dict[str, Any]] = []
+    for row in rows:
+        word = str(row["form_raw"])
+        word_clean = normalize_hebrew(word, FinalsPolicy.NORMALIZE)
+        if word_clean in exclude_norms:
+            continue
+        if len(word_clean) < 2:
+            continue
+        word_matches.append({
+            "word": word,
+            "frequency": int(row["frequency"]),
+            "shared_value": value,
+            "method": method_name,
+        })
+        if len(word_matches) >= max_per_component:
+            break
+    return word_matches
+
+
 def find_torah_word_matches(
     components: list[tuple[str, str]],
     db_path=DB_PATH,
     max_per_component: int = 8,
 ) -> dict[str, list[dict[str, Any]]]:
-    """For each component, find Torah words with the same standard gematria.
+    """For each component and the full combined name, find Torah words with
+    matching gematria across all six report methods.
 
     Returns notable Torah words that share gematria values with name parts,
-    along with their frequency and a sample location.
+    along with their frequency.  A dedicated ``combined_all`` entry is
+    always included when there are two or more components so the report
+    has first-class Torah-word findings for the user's *full* name, not
+    just for its individual components.
     """
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     results: dict[str, list[dict[str, Any]]] = {}
 
     try:
+        # Build the exclusion set so we never surface the raw name itself
+        # or any of its components as a "Torah word with same gematria"
+        # for the full combined name.
+        component_norms: set[str] = set()
+        for text, _ in components:
+            component_norms.add(normalize_hebrew(_clean(text), FinalsPolicy.NORMALIZE))
+        combined_clean = "".join(_clean(t) for t, _ in components)
+        if combined_clean:
+            component_norms.add(normalize_hebrew(combined_clean, FinalsPolicy.NORMALIZE))
+
         for text, role in components:
-            value = _gematria(text, "MISPAR_HECHRACHI")
-            if not value:
-                continue
-
-            rows = conn.execute(
-                "SELECT wf.form_raw, wf.frequency FROM word_gematria wg "
-                "JOIN word_forms wf ON wg.form_id = wf.form_id "
-                "JOIN gematria_methods gm ON wg.method_id = gm.method_id "
-                "WHERE gm.method_name = 'MISPAR_HECHRACHI' AND wg.value = ? "
-                "ORDER BY wf.frequency DESC LIMIT ?",
-                (value, max_per_component + 5),
-            ).fetchall()
-
             clean = _clean(text)
-            word_matches = []
-            for row in rows:
-                word = str(row["form_raw"])
-                word_clean = normalize_hebrew(word, FinalsPolicy.NORMALIZE)
-                if word_clean == normalize_hebrew(clean, FinalsPolicy.NORMALIZE):
+            if not clean:
+                continue
+            self_norm = normalize_hebrew(clean, FinalsPolicy.NORMALIZE)
+            word_matches: list[dict[str, Any]] = []
+            for method_name, _display in METHODS_FOR_REPORT:
+                value = _gematria(text, method_name)
+                if not value:
                     continue
-                if len(word_clean) < 2:
-                    continue
-                word_matches.append({
-                    "word": word,
-                    "frequency": int(row["frequency"]),
-                    "shared_value": value,
-                })
-                if len(word_matches) >= max_per_component:
+                word_matches.extend(
+                    _fetch_same_value_words(
+                        conn,
+                        method_name=method_name,
+                        value=value,
+                        exclude_norms={self_norm},
+                        max_per_component=max_per_component,
+                    )
+                )
+                if len(word_matches) >= max_per_component * 2:
                     break
-
             key = f"{text}|{role}"
-            results[key] = word_matches
+            results[key] = word_matches[: max_per_component * 2]
+
+        # Full combined-name entry (the "what about me as a whole" row)
+        if combined_clean and len(components) > 1:
+            combined_matches: list[dict[str, Any]] = []
+            for method_name, _display in METHODS_FOR_REPORT:
+                value = _gematria(combined_clean, method_name)
+                if not value:
+                    continue
+                combined_matches.extend(
+                    _fetch_same_value_words(
+                        conn,
+                        method_name=method_name,
+                        value=value,
+                        exclude_norms=component_norms,
+                        max_per_component=max_per_component,
+                    )
+                )
+            key = f"{combined_clean}|combined_all"
+            results[key] = combined_matches[: max_per_component * 3]
     finally:
         conn.close()
 
