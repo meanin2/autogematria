@@ -263,15 +263,72 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
 .stat-val {{ font-size:28px; font-weight:700; margin:4px 0; color:var(--ink); }}
 .stat-sub {{ font-size:11px; color:var(--slate); }}
 
+/* Copy-for-LLM button */
+.copy-bar {{
+  display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;
+}}
+.copy-btn {{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 16px; border-radius:12px; border:1px solid rgba(45,90,123,0.2);
+  background:linear-gradient(135deg,#2d5a7b,#4178a0); color:white;
+  font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
+  box-shadow:0 4px 14px rgba(45,90,123,0.25); transition:transform 0.15s;
+  min-height:44px;
+}}
+.copy-btn:hover {{ transform:translateY(-1px); }}
+.copy-btn.copied {{ background:linear-gradient(135deg,#315441,#4e8a78); }}
+.copy-btn svg {{ width:16px; height:16px; }}
+.copy-hint {{
+  font-size:11px; color:var(--slate); align-self:center; max-width:320px;
+}}
+
 @media(max-width:860px) {{
+  .page {{ padding:18px 14px 60px; }}
   .analysis-grid {{ grid-template-columns:1fr; }}
   .worlds-row {{ grid-template-columns:1fr 1fr; }}
   .search-row {{ flex-direction:column; }}
   .search-btn {{ width:100%; }}
+  .hero-search {{ padding:22px 18px; border-radius:var(--radius); }}
+  .card {{ padding:18px 16px; border-radius:var(--radius); }}
+  .finding-card {{ padding:14px; border-radius:var(--radius); }}
+  .letter-card {{ width:58px; padding:6px 2px; }}
+  .letter-char {{ font-size:24px; }}
+  .letter-meaning {{ display:none; }}
+  .name-part {{ padding:10px 14px; min-width:90px; }}
+  .name-part-text {{ font-size:20px; }}
+  .finding-text {{ font-size:16px; }}
+  .gem-table {{ font-size:12px; }}
+  .gem-table th, .gem-table td {{ padding:6px 6px; }}
+  nav button {{ padding:8px 12px; font-size:12px; }}
+  .logo-sub {{ display:none; }}
+  header {{ margin-bottom:16px; padding:10px 0; }}
+  .hero-title {{ font-size:26px; }}
+  .hero-desc {{ font-size:13px; margin:6px 0 14px; }}
+  .search-input {{ padding:14px 16px; font-size:16px; }}
 }}
 @media(max-width:480px) {{
-  .worlds-row {{ grid-template-columns:1fr; }}
+  .page {{ padding:14px 12px 50px; }}
+  .worlds-row {{ grid-template-columns:1fr 1fr; gap:6px; }}
   .name-parts {{ flex-direction:column; }}
+  .letter-card {{ width:46px; }}
+  .letter-char {{ font-size:20px; }}
+  .letter-name {{ font-size:7px; }}
+  .reverse-input {{ flex-direction:column; align-items:stretch; }}
+  .reverse-input input, .reverse-input select, .reverse-input button {{ width:100%; }}
+  .copy-btn {{ width:100%; justify-content:center; }}
+  .copy-hint {{ display:none; }}
+  nav {{ gap:2px; padding:2px; }}
+  nav button {{ padding:6px 10px; font-size:11px; }}
+  .hero-search {{ padding:18px 14px; }}
+  .card {{ padding:14px 12px; }}
+  .card-title {{ font-size:10px; }}
+  .hero-title {{ font-size:22px; }}
+  .finding-card {{ padding:12px; }}
+  .finding-text {{ font-size:15px; }}
+  .verse-hebrew {{ font-size:14px; }}
+  .gem-table {{ font-size:11px; }}
+  .gem-table .name-col {{ font-size:15px; }}
+  .gem-table th, .gem-table td {{ padding:5px 4px; }}
 }}
 </style>
 </head>
@@ -544,11 +601,22 @@ const METHOD_LABELS = {{
 
 function esc(s) {{ if (!s) return ''; const d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }}
 
+let _lastReport = null;
+
 function renderReport(d) {{
+  _lastReport = d;
   const r = d.report || {{}};
   const s = d.showcase || {{}};
   const timing = d.timing || {{}};
   let html = '';
+
+  html += '<div class="copy-bar">' +
+    '<button class="copy-btn" id="copy-md-btn" onclick="copyMarkdown()">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+    '<span id="copy-md-label">Copy for ChatGPT / Claude / Gemini</span>' +
+    '</button>' +
+    '<span class="copy-hint">Copies a full markdown report you can paste into any AI chat to discuss the results.</span>' +
+    '</div>';
 
   if (timing.elapsed_seconds) {{
     html += '<div class="timing-badge">Completed in ' + timing.elapsed_seconds + 's</div>';
@@ -715,6 +783,211 @@ function renderReport(d) {{
   }}
 
   return html || '<div class="card"><p style="color:var(--slate);">No results found.</p></div>';
+}}
+
+function buildReportMarkdown(d) {{
+  if (!d) return '';
+  const r = d.report || {{}};
+  const s = d.showcase || {{}};
+  const kab = r.kabbalistic_full_name || {{}};
+  const cc = r.cross_comparison || {{}};
+  const lines = [];
+  const push = (x) => lines.push(x);
+
+  const fullName = r.full_hebrew_name || r.raw_input || '';
+  push('# AutoGematria Report — ' + fullName);
+  push('');
+  push('Source: https://gematria.jewishaiart.com');
+  push('Query: `' + (r.raw_input || '') + '`');
+  if ((d.timing||{{}}).elapsed_seconds) push('Compute time: ' + d.timing.elapsed_seconds + 's');
+  push('');
+  push('> This is an automated Torah name analysis produced by AutoGematria, a deterministic (non-LLM) Hebrew gematria and Tanakh search engine. Use this as structured reference material to discuss Jewish numerology, kabbalistic symbolism, and Torah word connections for the name above. All Hebrew is unpointed consonantal text. Gematria values are computed by classical methods (Mispar Hechrachi, Gadol, Katan, Siduri, AtBash, Kolel).');
+  push('');
+
+  const comps = r.hebrew_components || [];
+  if (comps.length) {{
+    push('## Name Breakdown');
+    push('');
+    comps.forEach(c => {{
+      push('- **' + (ROLE_LABELS[c.role]||c.role) + ':** ' + c.text + ' = **' + c.gematria + '**');
+    }});
+    push('');
+  }}
+
+  const gt = cc.gematria_table || {{}};
+  const methods = gt.methods || [];
+  const gtcomps = gt.components || [];
+  if (methods.length && gtcomps.length) {{
+    push('## Gematria Across Methods');
+    push('');
+    const header = ['Name','Role', ...methods.map(m => m.display)];
+    push('| ' + header.join(' | ') + ' |');
+    push('|' + header.map(() => '---').join('|') + '|');
+    gtcomps.forEach(c => {{
+      const row = [c.text, (ROLE_LABELS[c.role]||c.role), ...methods.map(m => c.values[m.name] || '')];
+      push('| ' + row.join(' | ') + ' |');
+    }});
+    push('');
+  }}
+
+  const letters = kab.letter_meanings || [];
+  if (letters.length) {{
+    push('## Letter-by-Letter Analysis');
+    push('');
+    push('| Letter | Name | Value | Meaning |');
+    push('|---|---|---|---|');
+    letters.forEach(l => {{
+      const m = (l.meaning||'').replace(/\\|/g,'/');
+      push('| ' + l.letter + ' | ' + l.name + ' | ' + l.value + ' | ' + m + ' |');
+    }});
+    push('');
+  }}
+
+  const sef = kab.sefirah || {{}};
+  if (sef.sefirah) {{
+    push('## Sefirah Association');
+    push('');
+    push('- **Sefirah:** ' + sef.sefirah);
+    if (sef.description) push('- **Description:** ' + sef.description);
+    if (sef.value !== undefined) push('- **Gematria value:** ' + sef.value + ' (reduces to ' + (sef.reduced_to || '') + ')');
+    push('');
+  }}
+
+  const milui = kab.milui || {{}};
+  if (milui.full_milui_text) {{
+    push('## Milui (Letter Filling)');
+    push('');
+    push('- **Expanded:** ' + milui.full_milui_text);
+    push('- **Milui value:** ' + milui.milui_value);
+    if (milui.hidden_text) push('- **Hidden:** ' + milui.hidden_text + ' = ' + milui.hidden_value);
+    push('');
+  }}
+
+  const atbash = kab.atbash || {{}};
+  if (atbash.atbash_text) {{
+    push('## AtBash Transformation');
+    push('');
+    push('- **AtBash text:** ' + atbash.atbash_text);
+    push('- **Original value:** ' + (atbash.original_value||''));
+    push('- **AtBash value:** ' + (atbash.atbash_value||''));
+    push('- **Sum:** ' + (atbash.sum_with_original||''));
+    push('');
+  }}
+
+  const worlds = (kab.four_worlds||{{}}).worlds || [];
+  if (worlds.length) {{
+    push('## Four Worlds (ABYA)');
+    push('');
+    push('| World | Soul Level | Letters | Value |');
+    push('|---|---|---|---|');
+    worlds.forEach(w => {{
+      push('| ' + w.world + ' | ' + (w.soul_level||'') + ' | ' + (w.letters||[]).join(' ') + ' | ' + (w.value||0) + ' |');
+    }});
+    push('');
+  }}
+
+  const twm = cc.torah_word_matches || {{}};
+  const twKeys = Object.keys(twm).filter(k => (twm[k]||[]).length > 0);
+  if (twKeys.length) {{
+    push('## Torah Words with Same Gematria');
+    push('');
+    twKeys.forEach(key => {{
+      const [text, role] = key.split('|');
+      const list = twm[key] || [];
+      const val = (list[0]||{{}}).shared_value || '';
+      push('**' + text + '** (' + (ROLE_LABELS[role]||role) + ') = ' + val);
+      push('');
+      const words = list.slice(0, 20).map(w => w.word + ' (×' + w.frequency + ')').join(', ');
+      push(words);
+      push('');
+    }});
+  }}
+
+  const cm = cc.cross_matches || [];
+  if (cm.length) {{
+    push('## Cross-Comparison Discoveries');
+    push('');
+    cm.slice(0, 20).forEach(m => {{
+      const a = m.component_a||{{}}, b = m.component_b||{{}};
+      push('- **' + (m.value||'') + '** [' + (m.match_type||'').replace(/_/g,' ') + '] — `' +
+        (a.text||'') + '` (' + (ROLE_LABELS[a.role]||a.role||'') + ', ' + (METHOD_LABELS[a.method]||a.method||'') +
+        ') = `' + (b.text||'') + '` (' + (ROLE_LABELS[b.role]||b.role||'') + ', ' + (METHOD_LABELS[b.method]||b.method||'') + ')');
+    }});
+    push('');
+  }}
+
+  const vl = s.verdict_label || '';
+  if (vl) {{
+    push('## Verdict: ' + vl);
+    push('');
+  }}
+
+  const groups = [
+    ['Primary Torah Findings', s.headline_findings || []],
+    ['Supporting Findings', s.supporting_findings || []],
+    ['Additional Discoveries', s.interesting_findings || []],
+  ];
+  groups.forEach(([title, rows]) => {{
+    if (!rows.length) return;
+    push('## ' + title);
+    push('');
+    rows.slice(0, 10).forEach((f, i) => {{
+      const v = f.verse_context || {{}};
+      const ref = v.ref || '';
+      const p = f.params || {{}};
+      const tag = (f.method || '') + (p.mode ? ' / ' + p.mode : '');
+      push('### ' + (i+1) + '. ' + (f.found_text || '') + (ref ? ' — ' + ref : ''));
+      push('');
+      push('- **Method:** ' + tag);
+      if (f.explanation) push('- **Explanation:** ' + f.explanation);
+      if (v.hebrew) {{ push(''); push('> **Hebrew:** ' + v.hebrew); }}
+      if (v.english) {{ push(''); push('> **English:** ' + v.english); }}
+      push('');
+    }});
+  }});
+
+  const graph = d.graph || {{}};
+  const gs = graph.summary || {{}};
+  if (gs.name_components || gs.torah_words) {{
+    push('## Gematria Relationship Graph');
+    push('');
+    push('- Name components: ' + (gs.name_components || 0));
+    push('- Torah words: ' + (gs.torah_words || 0));
+    push('- Same-value edges: ' + (gs.same_value_edges || 0));
+    push('- Cross-method edges: ' + (gs.cross_method_edges || 0));
+    push('');
+  }}
+
+  push('---');
+  push('Ask the AI to explain any finding, compare to other traditions, or explore the symbolism of the letters and sefirot.');
+  return lines.join('\\n');
+}}
+
+async function copyMarkdown() {{
+  const md = buildReportMarkdown(_lastReport);
+  if (!md) return;
+  const btn = document.getElementById('copy-md-btn');
+  const label = document.getElementById('copy-md-label');
+  const original = label.textContent;
+  let ok = false;
+  try {{
+    if (navigator.clipboard && navigator.clipboard.writeText) {{
+      await navigator.clipboard.writeText(md);
+      ok = true;
+    }}
+  }} catch(e) {{}}
+  if (!ok) {{
+    try {{
+      const ta = document.createElement('textarea');
+      ta.value = md; ta.style.position='fixed'; ta.style.left='-9999px';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    }} catch(e) {{}}
+  }}
+  label.textContent = ok ? 'Copied!  Now paste into ChatGPT / Claude / Gemini' : 'Copy failed — long-press to select';
+  btn.classList.toggle('copied', ok);
+  setTimeout(() => {{ label.textContent = original; btn.classList.remove('copied'); }}, 3200);
 }}
 
 function renderReverseLookup(data, val, method) {{
