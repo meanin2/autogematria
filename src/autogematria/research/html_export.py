@@ -172,6 +172,7 @@ def prepare_showcase_payload(payload: dict[str, Any]) -> dict[str, Any]:
         ("headline_findings", True),
         ("supporting_findings", False),
         ("interesting_findings", False),
+        ("biblical_namesake_findings", False),
     ):
         showcase[key] = [enrich_row(row, is_headline=is_headline) for row in showcase.get(key) or []]
 

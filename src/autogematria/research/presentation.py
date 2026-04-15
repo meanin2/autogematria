@@ -4,6 +4,47 @@ from __future__ import annotations
 
 from typing import Any
 
+from autogematria.research.namesakes import is_biblical_namesake
+
+
+def _variant(row: dict[str, Any]) -> dict[str, Any]:
+    return row.get("variant") or {}
+
+
+def _is_namesake_only_hit(row: dict[str, Any], *, multi_token_query: bool) -> bool:
+    """True when this row is a raw match for a biblical namesake token.
+
+    Used to suppress meaningless ``משה``-in-Exodus-2 style hits when the
+    user's query is a full multi-token name.  We only suppress
+    *token*-level variants (not full-name variants), so a verified
+    full-name phrase match is never demoted.
+    """
+    if not multi_token_query:
+        return False
+    variant = _variant(row)
+    kind = str(variant.get("kind") or "")
+    text = str(variant.get("text") or "")
+    if kind != "token":
+        return False
+    if not is_biblical_namesake(text):
+        return False
+    method = str(row.get("method") or "")
+    family = str(row.get("family") or "")
+    # Text-layer hits on a bare biblical name are what we suppress --
+    # they are just "the Torah talks about the biblical figure".
+    if method in {"SUBSTRING", "ROSHEI_TEVOT", "SOFEI_TEVOT", "ELS"}:
+        return True
+    if family == "gematria":
+        # A Torah word whose gematria equals the biblical name is still
+        # mostly about the biblical figure, not about the modern person.
+        return True
+    return False
+
+
+def _is_full_name_variant(row: dict[str, Any]) -> bool:
+    variant = _variant(row)
+    return str(variant.get("kind") or "") == "full_name" and int(variant.get("token_count") or 1) > 1
+
 
 def _feature(row: dict[str, Any], key: str, default=None):
     return (((row.get("confidence") or {}).get("features") or {}).get(key, default))
@@ -110,20 +151,40 @@ def build_showcase(payload: dict[str, Any], *, limit_per_tier: int = 5) -> dict[
     ]
     rows = _dedupe(rows)
 
+    query = str(payload.get("query") or "")
+    multi_token_query = len([t for t in query.split() if t]) > 1
+
     has_direct_exact = any(
         row.get("method") == "SUBSTRING"
         and str(_feature(row, "match_type", "")) in {"exact_word", "exact_phrase"}
         and _verified(row)
+        and not _is_namesake_only_hit(row, multi_token_query=multi_token_query)
         for row in rows
     )
 
     scored_rows = []
+    namesake_rows: list[dict[str, Any]] = []
     for row in rows:
+        if _is_namesake_only_hit(row, multi_token_query=multi_token_query):
+            # Keep a copy visible, but in a clearly labeled separate bin
+            # so it never pollutes headline/supporting findings about the
+            # user's actual combined name.
+            if _verified(row):
+                enriched_ns = dict(row)
+                enriched_ns["presentation_tier"] = "biblical_namesake"
+                enriched_ns["presentation_score"] = round(_confidence(row), 4)
+                namesake_rows.append(enriched_ns)
+            continue
         tier = _tier(row, has_direct_exact=has_direct_exact)
         if not tier:
             continue
         enriched = dict(row)
-        enriched["presentation_score"] = _presentation_score(row, has_direct_exact=has_direct_exact)
+        base_score = _presentation_score(row, has_direct_exact=has_direct_exact)
+        # Boost findings about the full combined name so they rank above
+        # individual-token matches whenever they exist.
+        if _is_full_name_variant(row):
+            base_score += 1.5
+        enriched["presentation_score"] = base_score
         enriched["presentation_tier"] = tier
         scored_rows.append(enriched)
 
@@ -134,6 +195,9 @@ def build_showcase(payload: dict[str, Any], *, limit_per_tier: int = 5) -> dict[
         tier = str(row["presentation_tier"])
         if len(tiers[tier]) < limit_per_tier:
             tiers[tier].append(row)
+
+    namesake_rows.sort(key=lambda row: -float(row.get("presentation_score") or 0.0))
+    namesake_rows = namesake_rows[: limit_per_tier]
 
     if tiers["headline"]:
         verdict = "presentable_direct_hit"
@@ -175,6 +239,10 @@ def build_showcase(payload: dict[str, Any], *, limit_per_tier: int = 5) -> dict[
         "headline_findings": tiers["headline"],
         "supporting_findings": tiers["supporting"],
         "interesting_findings": tiers["interesting"],
-        "hidden_findings": max(0, len(rows) - sum(len(v) for v in tiers.values())),
+        "biblical_namesake_findings": namesake_rows,
+        "hidden_findings": max(
+            0,
+            len(rows) - sum(len(v) for v in tiers.values()) - len(namesake_rows),
+        ),
         "has_direct_exact": has_direct_exact,
     }
