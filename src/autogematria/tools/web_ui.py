@@ -641,6 +641,33 @@ function renderReport(d) {{
     html += '<div class="timing-badge">Completed in ' + timing.elapsed_seconds + 's</div>';
   }}
 
+  // Full-combined-name hero card -- always shown first so the user sees
+  // their entire name analyzed as a single unit, not just pieces.
+  const fullHeb = r.full_hebrew_name || '';
+  const gtForHero = (r.cross_comparison||{{}}).gematria_table || {{}};
+  const heroMethods = gtForHero.methods || [];
+  const heroCombined = (gtForHero.components || []).find(c => c.role === 'combined_all');
+  if (fullHeb && (r.hebrew_components||[]).length > 1) {{
+    const letterCount = (heroCombined && heroCombined.letter_count) || fullHeb.replace(/\\s+/g,'').length;
+    const wordCount = (r.hebrew_components||[]).length;
+    html += '<div class="card" style="background:linear-gradient(135deg,rgba(184,135,47,0.08),rgba(45,90,123,0.06));border:1px solid rgba(184,135,47,0.25);">';
+    html += '<div class="card-title" style="color:var(--gold);">The Full Name</div>';
+    html += '<div style="direction:rtl;font-family:David,\\'Times New Roman\\',serif;font-size:42px;font-weight:700;letter-spacing:0.02em;margin:8px 0 12px;color:var(--ink);">' + esc(fullHeb) + '</div>';
+    html += '<div style="font-size:12px;color:var(--slate);margin-bottom:12px;">' + wordCount + ' words · ' + letterCount + ' letters · analyzed as a single unit</div>';
+    if (heroCombined && heroMethods.length) {{
+      html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">';
+      heroMethods.forEach(m => {{
+        const v = heroCombined.values[m.name];
+        if (v === undefined) return;
+        html += '<span class="pill" style="background:rgba(184,135,47,0.12);border:1px solid rgba(184,135,47,0.28);color:var(--ink);font-weight:600;">' +
+          esc(m.display) + ': ' + v + '</span>';
+      }});
+      html += '</div>';
+    }}
+    html += '<p style="font-size:13px;color:var(--slate);margin:0;line-height:1.55;">Below you will find occurrences, same-value Torah words, and structural patterns computed for this combined name. Any matches that are only about an individual biblical namesake (e.g. the prophet Moses himself) are grouped separately as "Biblical Namesake" so they do not displace findings about you.</p>';
+    html += '</div>';
+  }}
+
   const comps = r.hebrew_components || [];
   if (comps.length) {{
     html += '<div class="card"><div class="card-title">Name Breakdown</div><div class="name-parts">';
@@ -757,6 +784,7 @@ function renderReport(d) {{
     [s.headline_findings||[], 'Primary Torah Findings', 'headline'],
     [s.supporting_findings||[], 'Supporting Findings', 'supporting'],
     [s.interesting_findings||[], 'Additional Discoveries', 'interesting'],
+    [s.biblical_namesake_findings||[], 'Biblical Namesake (about the biblical figure, not you)', 'interesting'],
   ].filter(f => f[0].length > 0);
   if (findings.length) {{
     const vl = s.verdict_label || '';
@@ -822,6 +850,29 @@ function buildReportMarkdown(d) {{
   push('');
   push('> This is an automated Torah name analysis produced by AutoGematria, a deterministic (non-LLM) Hebrew gematria and Tanakh search engine. Use this as structured reference material to discuss Jewish numerology, kabbalistic symbolism, and Torah word connections for the name above. All Hebrew is unpointed consonantal text. Gematria values are computed by classical methods (Mispar Hechrachi, Gadol, Katan, Siduri, AtBash, Kolel).');
   push('');
+
+  const ccHero = r.cross_comparison || {{}};
+  const gtHero = ccHero.gematria_table || {{}};
+  const heroMethodsMd = gtHero.methods || [];
+  const heroCombinedMd = (gtHero.components || []).find(c => c.role === 'combined_all');
+  if (fullName && (r.hebrew_components||[]).length > 1) {{
+    const lc = (heroCombinedMd && heroCombinedMd.letter_count) || fullName.replace(/\\s+/g,'').length;
+    const wc = (r.hebrew_components||[]).length;
+    push('## The Full Name');
+    push('');
+    push('**' + fullName + '** — ' + wc + ' words, ' + lc + ' letters, analyzed as a single unit.');
+    push('');
+    if (heroCombinedMd && heroMethodsMd.length) {{
+      const pills = heroMethodsMd
+        .filter(m => heroCombinedMd.values[m.name] !== undefined)
+        .map(m => m.display + ': **' + heroCombinedMd.values[m.name] + '**')
+        .join(' · ');
+      push(pills);
+      push('');
+    }}
+    push('The sections below analyze the combined name `' + fullName + '`. Matches that are only about an individual biblical namesake (e.g. the prophet Moses himself) are grouped separately.');
+    push('');
+  }}
 
   const comps = r.hebrew_components || [];
   if (comps.length) {{
@@ -945,6 +996,7 @@ function buildReportMarkdown(d) {{
     ['Primary Torah Findings', s.headline_findings || []],
     ['Supporting Findings', s.supporting_findings || []],
     ['Additional Discoveries', s.interesting_findings || []],
+    ['Biblical Namesake (about the biblical figure, not you)', s.biblical_namesake_findings || []],
   ];
   groups.forEach(([title, rows]) => {{
     if (!rows.length) return;
