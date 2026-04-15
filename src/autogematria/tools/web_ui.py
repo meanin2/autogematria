@@ -14,7 +14,7 @@ def build_ui_html(base_url: str = "") -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AutoGematria</title>
+<title>AutoGematria — Torah Name Analysis</title>
 <style>
 :root {{
   --ink: #1e1c1a; --paper: #f5efe2; --gold: #b8872f; --gold-soft: #d5b46d;
@@ -25,303 +25,432 @@ def build_ui_html(base_url: str = "") -> str:
 *{{ box-sizing:border-box; margin:0; padding:0; }}
 body {{
   color:var(--ink); font-family:"Avenir Next","Trebuchet MS","Segoe UI",sans-serif;
-  background: radial-gradient(circle at top left,rgba(184,135,47,0.22),transparent 24rem),
-    radial-gradient(circle at bottom right,rgba(49,84,65,0.15),transparent 24rem),
-    linear-gradient(135deg,#f9f3e7 0%,#efe5d1 48%,#f6ecdb 100%);
-  min-height:100vh; line-height:1.5;
+  background: radial-gradient(ellipse at 20% 0%,rgba(184,135,47,0.18),transparent 50%),
+    radial-gradient(ellipse at 80% 100%,rgba(49,84,65,0.12),transparent 40%),
+    linear-gradient(160deg,#faf4ea 0%,#f0e6d2 40%,#f6eddb 100%);
+  min-height:100vh; line-height:1.55;
 }}
-.page {{ max-width:1100px; margin:0 auto; padding:32px 20px 64px; }}
+.page {{ max-width:1080px; margin:0 auto; padding:28px 20px 80px; }}
 
-/* Header */
 header {{
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 0; border-bottom:1px solid rgba(184,135,47,0.2); margin-bottom:28px;
+  padding:14px 0; margin-bottom:24px;
 }}
 .logo {{ display:flex; align-items:center; gap:10px; }}
 .logo-mark {{
-  width:10px; height:10px; border-radius:999px;
-  background:linear-gradient(135deg,var(--gold-soft),#fff4c7);
-  box-shadow:0 0 16px rgba(213,180,109,0.6);
+  width:32px; height:32px; border-radius:10px;
+  background:linear-gradient(135deg,var(--gold),#e8c164);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; color:white; font-weight:800;
+  box-shadow:0 4px 12px rgba(184,135,47,0.3);
 }}
-.logo-text {{
-  font-size:13px; letter-spacing:0.16em; text-transform:uppercase;
-  color:var(--gold); font-weight:600;
-}}
-nav {{ display:flex; gap:8px; }}
+.logo-text {{ font-size:18px; font-weight:700; color:var(--ink); letter-spacing:-0.02em; }}
+.logo-sub {{ font-size:11px; color:var(--slate); margin-left:8px; }}
+nav {{ display:flex; gap:4px; background:rgba(0,0,0,0.04); border-radius:12px; padding:3px; }}
 nav button {{
-  padding:7px 14px; border-radius:999px; border:1px solid rgba(184,135,47,0.2);
-  background:transparent; color:var(--slate); font-size:12px; cursor:pointer;
-  font-weight:600; letter-spacing:0.04em; transition:all 0.2s;
+  padding:8px 16px; border-radius:10px; border:none;
+  background:transparent; color:var(--slate); font-size:13px; cursor:pointer;
+  font-weight:600; transition:all 0.2s;
 }}
-nav button:hover,nav button.active {{
-  background:var(--gold); color:white; border-color:var(--gold);
-}}
+nav button:hover {{ background:rgba(0,0,0,0.04); }}
+nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rgba(0,0,0,0.08); }}
 
-/* Search */
-.search-box {{
-  position:relative; margin-bottom:24px;
+/* Hero search */
+.hero-search {{
+  background:linear-gradient(135deg,rgba(28,25,22,0.96),rgba(52,40,22,0.94));
+  border-radius:var(--radius-lg); padding:32px; margin-bottom:24px;
+  box-shadow:0 20px 60px var(--shadow);
 }}
+.hero-title {{
+  font-family:"Iowan Old Style","Palatino Linotype",Garamond,serif;
+  font-size:clamp(28px,5vw,42px); color:#fff8ea; line-height:1.05; letter-spacing:-0.03em;
+}}
+.hero-desc {{ font-size:14px; color:rgba(255,248,234,0.7); margin:8px 0 20px; max-width:36rem; }}
+.search-row {{ display:flex; gap:8px; }}
 .search-input {{
-  width:100%; padding:16px 20px 16px 20px; border-radius:var(--radius-lg);
-  border:2px solid rgba(184,135,47,0.2); background:white;
-  font-size:20px; font-family:inherit; color:var(--ink);
-  box-shadow:0 8px 32px var(--shadow); transition:border-color 0.2s;
-  direction:auto;
+  flex:1; padding:14px 18px; border-radius:14px; border:2px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.08); font-size:18px; font-family:inherit; color:white;
+  transition:border-color 0.2s; direction:auto;
 }}
-.search-input:focus {{ outline:none; border-color:var(--gold); }}
-.search-input::placeholder {{ color:#b0a890; }}
+.search-input:focus {{ outline:none; border-color:var(--gold-soft); }}
+.search-input::placeholder {{ color:rgba(255,248,234,0.35); }}
 .search-btn {{
-  position:absolute; right:8px; top:50%; transform:translateY(-50%);
-  padding:10px 24px; border-radius:var(--radius); border:none;
-  background:linear-gradient(135deg,var(--gold),#caa24e);
+  padding:14px 28px; border-radius:14px; border:none;
+  background:linear-gradient(135deg,var(--gold),#d4a63a);
   color:white; font-size:15px; font-weight:700; cursor:pointer;
-  box-shadow:0 4px 12px rgba(184,135,47,0.3); transition:transform 0.15s;
+  box-shadow:0 4px 16px rgba(184,135,47,0.35); transition:transform 0.15s;
+  white-space:nowrap;
 }}
-.search-btn:hover {{ transform:translateY(-50%) scale(1.03); }}
-.search-btn:disabled {{ opacity:0.6; cursor:not-allowed; }}
+.search-btn:hover {{ transform:scale(1.03); }}
+.search-btn:disabled {{ opacity:0.5; cursor:not-allowed; transform:none; }}
+.example-names {{
+  display:flex; gap:6px; margin-top:12px; flex-wrap:wrap;
+}}
+.example-chip {{
+  padding:5px 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.06); color:rgba(255,248,234,0.65);
+  font-size:12px; cursor:pointer; transition:all 0.2s;
+}}
+.example-chip:hover {{ background:rgba(255,255,255,0.12); color:rgba(255,248,234,0.9); }}
 
-/* Tabs */
-.tabs {{ display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }}
-.tab {{
-  padding:8px 16px; border-radius:999px; border:1px solid rgba(54,67,83,0.12);
-  background:rgba(255,255,255,0.6); color:var(--slate); font-size:13px;
-  cursor:pointer; font-weight:600; transition:all 0.2s;
+/* Progress bar */
+.progress-bar {{ display:none; margin-top:16px; }}
+.progress-bar.active {{ display:block; }}
+.progress-track {{
+  height:6px; border-radius:3px; background:rgba(255,255,255,0.1); overflow:hidden;
 }}
-.tab:hover,.tab.active {{ background:var(--forest); color:white; border-color:var(--forest); }}
+.progress-fill {{
+  height:100%; border-radius:3px; background:linear-gradient(90deg,var(--gold),#e8c164);
+  transition:width 0.5s ease; width:0%;
+}}
+.progress-text {{
+  display:flex; justify-content:space-between; margin-top:6px;
+  font-size:11px; color:rgba(255,248,234,0.55);
+}}
 
 /* Cards */
 .card {{
-  border-radius:var(--radius-lg); padding:24px; margin-bottom:16px;
-  background:var(--card); box-shadow:0 8px 28px var(--shadow);
-  border:1px solid rgba(184,135,47,0.12);
+  border-radius:var(--radius-lg); padding:24px; margin-bottom:14px;
+  background:var(--card); box-shadow:0 6px 24px var(--shadow);
+  border:1px solid rgba(184,135,47,0.1);
 }}
 .card-title {{
-  font-size:13px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
-  color:var(--gold); margin-bottom:12px;
+  font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:14px;
+  display:flex; align-items:center; gap:8px;
 }}
-.section-title {{
-  font-family:"Iowan Old Style","Palatino Linotype","Book Antiqua",Garamond,serif;
-  font-size:24px; margin-bottom:16px; color:var(--ink);
+.card-title::before {{
+  content:''; width:4px; height:14px; border-radius:2px; background:var(--gold);
 }}
 
-/* Parsed name */
-.name-parts {{ display:flex; gap:12px; flex-wrap:wrap; }}
+/* Name breakdown */
+.name-parts {{ display:flex; gap:10px; flex-wrap:wrap; }}
 .name-part {{
-  border-radius:var(--radius); padding:12px 18px; text-align:center;
-  background:linear-gradient(135deg,#f0e6d0,#faf4e8);
-  border:1px solid rgba(184,135,47,0.18); min-width:100px;
+  border-radius:14px; padding:14px 20px; text-align:center;
+  background:linear-gradient(145deg,#f4ead6,#faf4e8);
+  border:1px solid rgba(184,135,47,0.15); min-width:100px; flex:1;
 }}
-.name-part-role {{ font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--gold); }}
-.name-part-text {{ font-size:22px; margin:4px 0; direction:rtl; font-family:"David","Times New Roman",serif; }}
-.name-part-val {{ font-size:13px; color:var(--slate); }}
+.name-part-role {{ font-size:9px; letter-spacing:0.14em; text-transform:uppercase; color:var(--gold); font-weight:700; }}
+.name-part-text {{ font-size:24px; margin:6px 0 4px; direction:rtl; font-family:"David","Times New Roman",serif; color:var(--ink); }}
+.name-part-val {{ font-size:13px; color:var(--slate); font-weight:600; }}
 
 /* Gematria table */
-.gem-table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-.gem-table th {{ text-align:left; padding:8px 10px; border-bottom:2px solid var(--gold-soft);
-  font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--slate); }}
-.gem-table td {{ padding:8px 10px; border-bottom:1px solid rgba(54,67,83,0.06); }}
+.gem-table {{ width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }}
+.gem-table th {{ text-align:left; padding:10px 10px; border-bottom:2px solid var(--gold-soft);
+  font-size:9px; letter-spacing:0.12em; text-transform:uppercase; color:var(--slate); position:sticky; top:0; background:var(--card); }}
+.gem-table td {{ padding:9px 10px; border-bottom:1px solid rgba(54,67,83,0.05); }}
+.gem-table tbody tr:hover {{ background:rgba(184,135,47,0.04); }}
 .gem-table .name-col {{ direction:rtl; font-family:"David","Times New Roman",serif; font-size:17px; font-weight:600; }}
-.gem-table .role-col {{ font-size:10px; color:var(--gold); text-transform:uppercase; }}
-.gem-table .val {{ text-align:center; font-weight:600; font-size:14px; }}
-.gem-table .val.highlight {{ background:rgba(184,135,47,0.1); border-radius:6px; }}
+.gem-table .role-col {{ font-size:9px; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; }}
+.gem-table .val {{ text-align:center; font-weight:600; font-size:14px; font-variant-numeric:tabular-nums; }}
 
 /* Letters */
 .letters-row {{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }}
 .letter-card {{
-  width:72px; border-radius:12px; padding:8px; text-align:center;
-  background:linear-gradient(135deg,#f8f0de,#fdf7ec);
-  border:1px solid rgba(184,135,47,0.15);
+  width:70px; border-radius:12px; padding:8px 4px; text-align:center;
+  background:linear-gradient(145deg,#f8f0de,#fdf7ec);
+  border:1px solid rgba(184,135,47,0.12); transition:transform 0.15s;
 }}
+.letter-card:hover {{ transform:translateY(-2px); }}
 .letter-char {{ font-size:28px; font-family:"David","Times New Roman",serif; color:var(--gold); }}
-.letter-name {{ font-size:9px; font-weight:700; color:var(--slate); }}
-.letter-val {{ font-size:11px; }}
-.letter-meaning {{ font-size:8px; color:var(--forest); margin-top:2px; line-height:1.2; }}
+.letter-name {{ font-size:8px; font-weight:700; color:var(--slate); text-transform:uppercase; letter-spacing:0.05em; }}
+.letter-val {{ font-size:11px; color:var(--ink); font-weight:600; }}
+.letter-meaning {{ font-size:7.5px; color:var(--forest); margin-top:2px; line-height:1.2; }}
 
 /* Analysis blocks */
-.analysis-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }}
-.analysis-block {{ padding:16px; border-radius:var(--radius); background:rgba(0,0,0,0.02); }}
-.analysis-label {{ font-size:11px; font-weight:700; color:var(--slate); letter-spacing:0.08em; text-transform:uppercase; }}
-.analysis-hebrew {{ direction:rtl; font-family:"David","Times New Roman",serif; font-size:20px; color:var(--gold); margin:4px 0; }}
-.analysis-value {{ font-size:20px; font-weight:700; }}
+.analysis-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }}
+.analysis-block {{ padding:16px; border-radius:14px; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.03); }}
+.analysis-label {{ font-size:10px; font-weight:700; color:var(--slate); letter-spacing:0.1em; text-transform:uppercase; }}
+.analysis-hebrew {{ direction:rtl; font-family:"David","Times New Roman",serif; font-size:18px; color:var(--gold); margin:6px 0; }}
+.analysis-value {{ font-size:22px; font-weight:700; }}
 
 /* Sefirah */
 .sefirah-badge {{
   display:inline-flex; align-items:center; gap:8px; padding:8px 16px;
-  border-radius:12px; background:linear-gradient(135deg,rgba(184,135,47,0.1),rgba(184,135,47,0.04));
-  border:1px solid rgba(184,135,47,0.18);
+  border-radius:12px; background:linear-gradient(135deg,rgba(184,135,47,0.08),rgba(184,135,47,0.03));
+  border:1px solid rgba(184,135,47,0.15);
 }}
-.sefirah-name {{ font-size:16px; font-weight:700; color:var(--gold); }}
+.sefirah-name {{ font-size:15px; font-weight:700; color:var(--gold); }}
 .sefirah-desc {{ font-size:12px; color:var(--slate); }}
 
 /* Torah words */
-.torah-words {{ display:flex; gap:6px; flex-wrap:wrap; }}
+.torah-words {{ display:flex; gap:5px; flex-wrap:wrap; }}
 .torah-word {{
   display:inline-flex; align-items:center; gap:4px;
-  padding:4px 12px; border-radius:999px;
-  background:rgba(49,84,65,0.08); border:1px solid rgba(49,84,65,0.12);
+  padding:4px 11px; border-radius:999px;
+  background:rgba(49,84,65,0.06); border:1px solid rgba(49,84,65,0.1);
   font-size:14px; direction:rtl; font-family:"David","Times New Roman",serif;
+  transition:background 0.15s;
 }}
-.torah-word-freq {{ font-size:9px; color:var(--slate); direction:ltr; }}
+.torah-word:hover {{ background:rgba(49,84,65,0.12); }}
+.torah-word-freq {{ font-size:8px; color:var(--slate); direction:ltr; }}
 
 /* Four worlds */
-.worlds-row {{ display:flex; gap:10px; flex-wrap:wrap; }}
-.world-card {{
-  flex:1; min-width:120px; border-radius:12px; padding:12px; text-align:center;
-}}
+.worlds-row {{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }}
 
-/* Findings */
+/* Finding cards */
 .finding-card {{
-  border-radius:var(--radius-lg); padding:16px; margin-bottom:12px;
-  color:white; box-shadow:0 8px 24px var(--shadow);
+  border-radius:var(--radius-lg); padding:16px; margin-bottom:10px;
+  color:white; box-shadow:0 6px 20px var(--shadow);
 }}
 .finding-card.headline {{ background:linear-gradient(135deg,#8f6424,#caa24e 54%,#f6ddb1); color:#1d1204; }}
 .finding-card.supporting {{ background:linear-gradient(135deg,#1f4e4b,#4e8a78 60%,#b7dbc7); }}
 .finding-card.interesting {{ background:linear-gradient(135deg,#4a304c,#815486 55%,#d9bfdc); }}
 .finding-meta {{ display:flex; align-items:center; justify-content:space-between; font-size:11px; }}
 .pill {{ padding:4px 10px; border-radius:999px; background:rgba(255,255,255,0.16);
-  border:1px solid rgba(255,255,255,0.2); font-size:11px; }}
-.finding-text {{ margin:12px 0 8px; font-size:20px; font-family:"Iowan Old Style",Garamond,serif; }}
-.finding-explainer {{ font-size:13px; line-height:1.5; opacity:0.9; }}
-.verse-block {{ margin-top:8px; padding:8px 12px; border-radius:12px; background:rgba(255,255,255,0.1);
-  border:1px solid rgba(255,255,255,0.15); }}
-.verse-label {{ font-size:9px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.65; }}
-.verse-hebrew {{ direction:rtl; font-size:16px; font-family:"David","Times New Roman",serif; margin:4px 0 0; line-height:1.6; }}
-.verse-english {{ font-size:12px; margin:4px 0 0; line-height:1.4; }}
+  border:1px solid rgba(255,255,255,0.18); font-size:10px; font-weight:600; }}
+.finding-text {{ margin:10px 0 6px; font-size:18px; font-family:"Iowan Old Style",Garamond,serif; }}
+.finding-explainer {{ font-size:12px; line-height:1.5; opacity:0.9; }}
+.verse-block {{ margin-top:8px; padding:8px 12px; border-radius:12px; background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12); }}
+.verse-label {{ font-size:8px; letter-spacing:0.12em; text-transform:uppercase; opacity:0.55; font-weight:700; }}
+.verse-hebrew {{ direction:rtl; font-size:15px; font-family:"David","Times New Roman",serif; margin:4px 0 0; line-height:1.55; }}
+.verse-english {{ font-size:11px; margin:4px 0 0; line-height:1.4; }}
 
 /* Reverse lookup */
 .reverse-input {{
-  display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center;
+  display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;
 }}
 .reverse-input input {{
-  padding:10px 14px; border-radius:var(--radius); border:1px solid rgba(184,135,47,0.2);
-  font-size:16px; width:140px; background:white;
+  padding:12px 16px; border-radius:14px; border:2px solid rgba(184,135,47,0.15);
+  font-size:18px; width:160px; background:white; font-weight:600;
 }}
+.reverse-input input:focus {{ outline:none; border-color:var(--gold); }}
 .reverse-input select {{
-  padding:10px 14px; border-radius:var(--radius); border:1px solid rgba(184,135,47,0.2);
+  padding:12px 14px; border-radius:14px; border:2px solid rgba(184,135,47,0.15);
   font-size:13px; background:white;
 }}
 .reverse-input button {{
-  padding:10px 18px; border-radius:var(--radius); border:none;
-  background:var(--forest); color:white; font-size:13px; font-weight:600; cursor:pointer;
+  padding:12px 20px; border-radius:14px; border:none;
+  background:var(--forest); color:white; font-size:13px; font-weight:700; cursor:pointer;
+  box-shadow:0 4px 12px rgba(49,84,65,0.25);
 }}
 
-/* Graph / match cards */
+/* Match cards */
 .match-card {{
   border-radius:12px; padding:12px 16px; margin-bottom:8px;
-  background:linear-gradient(135deg,rgba(45,90,123,0.06),rgba(49,84,65,0.04));
-  border:1px solid rgba(45,90,123,0.12);
+  background:linear-gradient(135deg,rgba(45,90,123,0.05),rgba(49,84,65,0.03));
+  border:1px solid rgba(45,90,123,0.1);
 }}
-.match-value {{ font-size:20px; font-weight:700; color:var(--accent); }}
-.match-detail {{ font-size:13px; color:var(--ink); margin-top:3px; }}
+.match-value {{ font-size:18px; font-weight:700; color:var(--accent); }}
+.match-detail {{ font-size:12px; color:var(--ink); margin-top:3px; }}
 
 /* Loading */
 .loading {{ text-align:center; padding:40px; color:var(--slate); }}
-.spinner {{ display:inline-block; width:24px; height:24px; border:3px solid rgba(184,135,47,0.2);
+.spinner {{ display:inline-block; width:20px; height:20px; border:3px solid rgba(184,135,47,0.2);
   border-top-color:var(--gold); border-radius:50%; animation:spin 0.8s linear infinite; }}
 @keyframes spin {{ to {{ transform:rotate(360deg); }} }}
 
+/* Timing badge */
+.timing-badge {{
+  display:inline-flex; align-items:center; gap:6px; padding:6px 14px;
+  border-radius:999px; background:rgba(49,84,65,0.06); border:1px solid rgba(49,84,65,0.1);
+  font-size:12px; color:var(--forest); font-weight:600; margin-bottom:14px;
+}}
+
 .hidden {{ display:none !important; }}
-.error {{ padding:16px; background:#fff0f0; border:1px solid #e0b0b0; border-radius:var(--radius);
-  color:#7a2f2f; font-size:14px; margin-bottom:16px; }}
+.error {{ padding:14px 18px; background:#fef2f2; border:1px solid #e8b4b4; border-radius:14px;
+  color:#7a2f2f; font-size:13px; margin-bottom:14px; }}
+
+/* Stats */
+.stat-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }}
+.stat-card {{
+  border-radius:14px; padding:16px; text-align:center;
+  background:linear-gradient(145deg,#f4ead6,#faf4e8);
+  border:1px solid rgba(184,135,47,0.12);
+}}
+.stat-label {{ font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--gold); }}
+.stat-val {{ font-size:28px; font-weight:700; margin:4px 0; color:var(--ink); }}
+.stat-sub {{ font-size:11px; color:var(--slate); }}
 
 @media(max-width:860px) {{
   .analysis-grid {{ grid-template-columns:1fr; }}
-  .worlds-row {{ flex-direction:column; }}
+  .worlds-row {{ grid-template-columns:1fr 1fr; }}
+  .search-row {{ flex-direction:column; }}
+  .search-btn {{ width:100%; }}
+}}
+@media(max-width:480px) {{
+  .worlds-row {{ grid-template-columns:1fr; }}
+  .name-parts {{ flex-direction:column; }}
 }}
 </style>
 </head>
 <body>
 <div class="page">
   <header>
-    <div class="logo"><span class="logo-mark"></span><span class="logo-text">AutoGematria</span></div>
+    <div class="logo">
+      <div class="logo-mark">AG</div>
+      <span class="logo-text">AutoGematria</span>
+      <span class="logo-sub">Torah Name Analysis</span>
+    </div>
     <nav>
-      <button class="active" onclick="showView('search')">Name Analysis</button>
-      <button onclick="showView('reverse')">Reverse Lookup</button>
-      <button onclick="showView('about')">About</button>
+      <button class="active" onclick="showView('search',this)">Analyze</button>
+      <button onclick="showView('reverse',this)">Reverse Lookup</button>
+      <button onclick="showView('about',this)">About</button>
     </nav>
   </header>
 
-  <!-- Search View -->
   <div id="view-search">
-    <div class="search-box">
-      <input class="search-input" id="name-input" type="text" placeholder="Enter a name: moshe ben yitzchak gindi, שרה בת אברהם..."
-        dir="auto" autofocus>
-      <button class="search-btn" id="search-btn" onclick="runSearch()">Analyze</button>
+    <div class="hero-search">
+      <div class="hero-title">Find your name in the Torah</div>
+      <div class="hero-desc">Enter a Hebrew or English name. Supports complex structures like "moshe ben yitzchak v'miriam gindi" or "שרה בת אברהם ורבקה כהן".</div>
+      <div class="search-row">
+        <input class="search-input" id="name-input" type="text"
+          placeholder="Enter a name..." dir="auto" autofocus>
+        <button class="search-btn" id="search-btn" onclick="runSearch()">Analyze Name</button>
+      </div>
+      <div class="example-names">
+        <span class="example-chip" onclick="setExample('משה בן יצחק ומרים גינדי')">משה בן יצחק ומרים גינדי</span>
+        <span class="example-chip" onclick="setExample('שרה בת אברהם ורבקה כהן')">שרה בת אברהם ורבקה כהן</span>
+        <span class="example-chip" onclick="setExample('david ben shlomo')">david ben shlomo</span>
+      </div>
+      <div class="progress-bar" id="progress-bar">
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-text">
+          <span id="progress-label">Analyzing...</span>
+          <span id="progress-eta"></span>
+        </div>
+      </div>
     </div>
     <div id="search-error" class="error hidden"></div>
-    <div id="search-loading" class="loading hidden"><div class="spinner"></div><p>Analyzing name...</p></div>
     <div id="search-results" class="hidden"></div>
   </div>
 
-  <!-- Reverse Lookup View -->
   <div id="view-reverse" class="hidden">
-    <h2 class="section-title">Gematria Reverse Lookup</h2>
-    <p style="color:var(--slate);font-size:14px;margin-bottom:16px;">
-      Enter a number to find all Tanakh words with that gematria value.
-    </p>
-    <div class="reverse-input">
-      <input type="number" id="reverse-value" placeholder="345" min="1">
-      <select id="reverse-method">
-        <option value="MISPAR_HECHRACHI">Standard</option>
-        <option value="MISPAR_GADOL">Full Value</option>
-        <option value="MISPAR_KATAN">Reduced</option>
-        <option value="MISPAR_SIDURI">Ordinal</option>
-        <option value="ATBASH">AtBash</option>
-        <option value="MISPAR_KOLEL">Kolel</option>
-      </select>
-      <button onclick="runReverseLookup()">Search</button>
+    <div class="card">
+      <div class="card-title">Gematria Reverse Lookup</div>
+      <p style="color:var(--slate);font-size:13px;margin-bottom:14px;">
+        Enter a number to find all Tanakh words with that gematria value.
+      </p>
+      <div class="reverse-input">
+        <input type="number" id="reverse-value" placeholder="345" min="1"
+          onkeydown="if(event.key==='Enter')runReverseLookup()">
+        <select id="reverse-method">
+          <option value="MISPAR_HECHRACHI">Standard</option>
+          <option value="MISPAR_GADOL">Full Value</option>
+          <option value="MISPAR_KATAN">Reduced</option>
+          <option value="MISPAR_SIDURI">Ordinal</option>
+          <option value="ATBASH">AtBash</option>
+          <option value="MISPAR_KOLEL">Kolel</option>
+        </select>
+        <button onclick="runReverseLookup()">Search</button>
+      </div>
+      <div id="reverse-loading" class="loading hidden"><div class="spinner"></div></div>
+      <div id="reverse-results"></div>
     </div>
-    <div id="reverse-loading" class="loading hidden"><div class="spinner"></div></div>
-    <div id="reverse-results"></div>
   </div>
 
-  <!-- About View -->
   <div id="view-about" class="hidden">
-    <h2 class="section-title">About AutoGematria</h2>
     <div class="card">
-      <p style="font-size:15px;line-height:1.7;">
+      <div class="card-title">About</div>
+      <p style="font-size:14px;line-height:1.7;">
         AutoGematria is a deterministic Torah name-finding and gematria analysis engine.
-        Given a Hebrew name (or an English name that it transliterates), it finds where the name
-        appears in the Torah/Tanakh through traditional methods: direct text, equidistant letter
-        sequences (ELS), roshei/sofei tevot (acrostics), and gematria equivalences.
+        Every person's name can be found in the Torah — this tool systematically discovers those connections
+        through direct text search, equidistant letter sequences (ELS), acrostics, and gematria equivalences.
       </p>
-      <p style="font-size:15px;line-height:1.7;margin-top:12px;">
-        It also provides kabbalistic analysis rooted in traditional Orthodox sources:
-        letter meanings (Sefer Yetzirah, Arizal), milui (letter-filling), AtBash cipher,
-        sefirot associations, and four-worlds (ABYA) breakdown.
+      <p style="font-size:14px;line-height:1.7;margin-top:10px;">
+        Kabbalistic analysis uses traditional Orthodox sources: letter meanings (Sefer Yetzirah, Arizal),
+        milui (letter-filling), AtBash cipher, sefirot associations, and four-worlds (ABYA) breakdown.
       </p>
-      <p style="font-size:14px;color:var(--slate);margin-top:16px;">
-        <strong>Corpus:</strong> Full Tanakh &mdash; 39 books, 23,206 verses, 306,869 words, 1,205,822 letters.<br>
-        <strong>Gematria:</strong> 22 methods precomputed for all 40,664 unique word forms (894,608 values).<br>
-        <strong>Sources:</strong> Sefaria API (Public Domain), hebrew PyPI package.
-      </p>
+    </div>
+    <div class="card">
+      <div class="card-title">System Requirements</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">CPU</div><div class="stat-val">Any</div><div class="stat-sub">No GPU needed</div></div>
+        <div class="stat-card"><div class="stat-label">Memory</div><div class="stat-val">~52 MB</div><div class="stat-sub">Peak RSS during search</div></div>
+        <div class="stat-card"><div class="stat-label">Storage</div><div class="stat-val">~50 MB</div><div class="stat-sub">SQLite database</div></div>
+        <div class="stat-card"><div class="stat-label">Python</div><div class="stat-val">3.11+</div><div class="stat-sub">No LLM required</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Corpus</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Books</div><div class="stat-val">39</div><div class="stat-sub">Full Tanakh</div></div>
+        <div class="stat-card"><div class="stat-label">Verses</div><div class="stat-val">23,206</div><div class="stat-sub">Torah + Nevi'im + Ketuvim</div></div>
+        <div class="stat-card"><div class="stat-label">Words</div><div class="stat-val">306,869</div><div class="stat-sub">All word forms indexed</div></div>
+        <div class="stat-card"><div class="stat-label">Letters</div><div class="stat-val">1,205,822</div><div class="stat-sub">With absolute indices</div></div>
+        <div class="stat-card"><div class="stat-label">Gematria Methods</div><div class="stat-val">22</div><div class="stat-sub">894,608 precomputed values</div></div>
+        <div class="stat-card"><div class="stat-label">Unique Forms</div><div class="stat-val">40,664</div><div class="stat-sub">Distinct word forms</div></div>
+      </div>
+    </div>
+    <div class="card" id="run-stats-card" style="display:none;">
+      <div class="card-title">Run History</div>
+      <div id="run-stats-content"></div>
     </div>
   </div>
 </div>
 
 <script>
 const API = "{base_url}";
+let progressInterval = null;
 
-function showView(name) {{
+function showView(name, btn) {{
   document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.add('hidden'));
   document.getElementById('view-' + name).classList.remove('hidden');
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'about') loadRunStats();
+}}
+
+function setExample(text) {{
+  document.getElementById('name-input').value = text;
+  document.getElementById('name-input').focus();
 }}
 
 document.getElementById('name-input').addEventListener('keydown', e => {{
   if (e.key === 'Enter') runSearch();
 }});
 
+function startProgress(estSeconds) {{
+  const bar = document.getElementById('progress-bar');
+  const fill = document.getElementById('progress-fill');
+  const label = document.getElementById('progress-label');
+  const eta = document.getElementById('progress-eta');
+  bar.classList.add('active');
+  fill.style.width = '0%';
+
+  const steps = ['Parsing name...', 'Computing gematria...', 'Kabbalistic analysis...', 'Searching Torah...', 'Building graph...', 'Finalizing...'];
+  let stepIdx = 0;
+  const startTime = Date.now();
+  const totalMs = estSeconds * 1000;
+
+  progressInterval = setInterval(() => {{
+    const elapsed = Date.now() - startTime;
+    const pct = Math.min(95, (elapsed / totalMs) * 100);
+    fill.style.width = pct + '%';
+    const remaining = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+    eta.textContent = remaining > 0 ? remaining + 's remaining' : 'almost done...';
+    const newStep = Math.min(steps.length - 1, Math.floor(pct / (100 / steps.length)));
+    if (newStep !== stepIdx) {{ stepIdx = newStep; label.textContent = steps[stepIdx]; }}
+  }}, 200);
+}}
+
+function stopProgress() {{
+  if (progressInterval) {{ clearInterval(progressInterval); progressInterval = null; }}
+  const fill = document.getElementById('progress-fill');
+  fill.style.width = '100%';
+  setTimeout(() => {{ document.getElementById('progress-bar').classList.remove('active'); }}, 600);
+}}
+
 async function runSearch() {{
   const q = document.getElementById('name-input').value.trim();
   if (!q) return;
   const btn = document.getElementById('search-btn');
-  const loading = document.getElementById('search-loading');
   const results = document.getElementById('search-results');
   const errDiv = document.getElementById('search-error');
-  btn.disabled = true; loading.classList.remove('hidden'); results.classList.add('hidden');
-  errDiv.classList.add('hidden');
+  btn.disabled = true; results.classList.add('hidden'); errDiv.classList.add('hidden');
+
+  let estSec = 15;
+  try {{
+    const estResp = await fetch(API + '/api/estimate', {{
+      method: 'POST', headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{query: q, operation: 'full_report'}})
+    }});
+    if (estResp.ok) {{ const ed = await estResp.json(); estSec = ed.estimated_seconds || 15; }}
+  }} catch(e) {{}}
+
+  startProgress(estSec);
+
   try {{
     const resp = await fetch(API + '/api/full-report', {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
@@ -329,13 +458,16 @@ async function runSearch() {{
     }});
     if (!resp.ok) throw new Error('Server error: ' + resp.status);
     const data = await resp.json();
+    stopProgress();
     results.innerHTML = renderReport(data);
     results.classList.remove('hidden');
+    results.scrollIntoView({{behavior:'smooth', block:'start'}});
   }} catch(e) {{
+    stopProgress();
     errDiv.textContent = 'Error: ' + e.message;
     errDiv.classList.remove('hidden');
   }} finally {{
-    btn.disabled = false; loading.classList.add('hidden');
+    btn.disabled = false;
   }}
 }}
 
@@ -360,23 +492,47 @@ async function runReverseLookup() {{
   }}
 }}
 
+async function loadRunStats() {{
+  try {{
+    const resp = await fetch(API + '/api/run-stats');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.total_runs > 0) {{
+      const card = document.getElementById('run-stats-card');
+      const content = document.getElementById('run-stats-content');
+      card.style.display = '';
+      let html = '<div class="stat-grid">';
+      html += '<div class="stat-card"><div class="stat-label">Total Runs</div><div class="stat-val">' + data.total_runs + '</div></div>';
+      for (const [op, s] of Object.entries(data.operations || {{}})) {{
+        html += '<div class="stat-card"><div class="stat-label">' + esc(op.replace(/_/g,' ')) + '</div><div class="stat-val">' + s.count + '</div><div class="stat-sub">avg ' + s.avg_seconds + 's</div></div>';
+      }}
+      html += '</div>';
+      content.innerHTML = html;
+    }}
+  }} catch(e) {{}}
+}}
+
 const ROLE_LABELS = {{
   first_name: 'First Name', father_name: "Father's Name", mother_name: "Mother's Name",
-  surname: 'Surname', extra: 'Additional', 'combined_all': 'Full Combined',
+  surname: 'Surname', extra: 'Additional', combined_all: 'Full Combined',
 }};
 const METHOD_LABELS = {{
   MISPAR_HECHRACHI: 'Standard', MISPAR_GADOL: 'Full Value', MISPAR_KATAN: 'Reduced',
   MISPAR_SIDURI: 'Ordinal', ATBASH: 'AtBash', MISPAR_KOLEL: 'Kolel',
 }};
 
-function esc(s) {{ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }}
+function esc(s) {{ if (!s) return ''; const d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }}
 
 function renderReport(d) {{
   const r = d.report || {{}};
   const s = d.showcase || {{}};
+  const timing = d.timing || {{}};
   let html = '';
 
-  // Name breakdown
+  if (timing.elapsed_seconds) {{
+    html += '<div class="timing-badge">Completed in ' + timing.elapsed_seconds + 's</div>';
+  }}
+
   const comps = r.hebrew_components || [];
   if (comps.length) {{
     html += '<div class="card"><div class="card-title">Name Breakdown</div><div class="name-parts">';
@@ -387,12 +543,11 @@ function renderReport(d) {{
     html += '</div></div>';
   }}
 
-  // Gematria table
   const gt = (r.cross_comparison||{{}}).gematria_table || {{}};
   const methods = gt.methods || [];
   const gtcomps = gt.components || [];
   if (methods.length && gtcomps.length) {{
-    html += '<div class="card"><div class="card-title">Gematria Across Methods</div><table class="gem-table"><thead><tr><th>Name</th><th>Role</th>';
+    html += '<div class="card"><div class="card-title">Gematria Across Methods</div><div style="overflow-x:auto;"><table class="gem-table"><thead><tr><th>Name</th><th>Role</th>';
     methods.forEach(m => html += '<th class="val">' + esc(m.display) + '</th>');
     html += '</tr></thead><tbody>';
     gtcomps.forEach(c => {{
@@ -400,10 +555,9 @@ function renderReport(d) {{
       methods.forEach(m => html += '<td class="val">' + (c.values[m.name]||'') + '</td>');
       html += '</tr>';
     }});
-    html += '</tbody></table></div>';
+    html += '</tbody></table></div></div>';
   }}
 
-  // Letter analysis
   const kab = r.kabbalistic_full_name || {{}};
   const letters = kab.letter_meanings || [];
   if (letters.length) {{
@@ -418,12 +572,11 @@ function renderReport(d) {{
     if (sef.sefirah) {{
       html += '<div style="margin-top:12px"><div class="sefirah-badge"><span class="sefirah-name">' + esc(sef.sefirah) +
         '</span><span class="sefirah-desc">' + esc(sef.description||'') + '</span></div>' +
-        '<div style="font-size:12px;color:var(--slate);margin-top:4px;">Gematria ' + (sef.value||'') + ' reduces to ' + (sef.reduced_to||'') + '</div></div>';
+        '<div style="font-size:11px;color:var(--slate);margin-top:4px;">Gematria ' + (sef.value||'') + ' reduces to ' + (sef.reduced_to||'') + '</div></div>';
     }}
     html += '</div>';
   }}
 
-  // Milui & AtBash
   const milui = kab.milui || {{}};
   const atbash = kab.atbash || {{}};
   if (milui.full_milui_text || atbash.atbash_text) {{
@@ -432,7 +585,7 @@ function renderReport(d) {{
       html += '<div class="analysis-block"><div class="analysis-label">Milui (Letter Filling)</div>' +
         '<div class="analysis-hebrew">' + esc(milui.full_milui_text) + '</div>' +
         '<div class="analysis-value">' + milui.milui_value + '</div>' +
-        '<div style="font-size:12px;color:var(--slate);margin-top:4px;">Hidden: ' + esc(milui.hidden_text||'') + ' = ' + (milui.hidden_value||0) + '</div></div>';
+        '<div style="font-size:11px;color:var(--slate);margin-top:4px;">Hidden: ' + esc(milui.hidden_text||'') + ' = ' + (milui.hidden_value||0) + '</div></div>';
     }}
     if (atbash.atbash_text) {{
       html += '<div class="analysis-block"><div class="analysis-label">AtBash Transformation</div>' +
@@ -445,23 +598,21 @@ function renderReport(d) {{
     html += '</div></div>';
   }}
 
-  // Four worlds
   const fw = (kab.four_worlds||{{}}).worlds || [];
   if (fw.length) {{
     const colors = {{Atzilut:'#b8872f',Beriah:'#2d5a7b',Yetzirah:'#315441',Asiyah:'#7a2f2f'}};
     html += '<div class="card"><div class="card-title">Four Worlds (ABYA)</div><div class="worlds-row">';
     fw.forEach(w => {{
       const c = colors[w.world]||'#364353';
-      html += '<div class="world-card" style="background:' + c + '10;border:1px solid ' + c + '30;">' +
-        '<div style="font-size:10px;font-weight:700;color:' + c + ';text-transform:uppercase;letter-spacing:0.1em;">' + esc(w.world) + '</div>' +
-        '<div style="font-size:9px;color:var(--slate);">' + esc(w.soul_level||'') + '</div>' +
-        '<div style="font-size:20px;direction:rtl;font-family:David,serif;margin:6px 0;color:' + c + ';">' + esc((w.letters||[]).join(' ')) + '</div>' +
-        '<div style="font-size:15px;font-weight:700;">' + (w.value||0) + '</div></div>';
+      html += '<div style="border-radius:14px;padding:14px;text-align:center;background:' + c + '10;border:1px solid ' + c + '25;">' +
+        '<div style="font-size:9px;font-weight:700;color:' + c + ';text-transform:uppercase;letter-spacing:0.12em;">' + esc(w.world) + '</div>' +
+        '<div style="font-size:8px;color:var(--slate);">' + esc(w.soul_level||'') + '</div>' +
+        '<div style="font-size:22px;direction:rtl;font-family:David,serif;margin:6px 0;color:' + c + ';">' + esc((w.letters||[]).join(' ')) + '</div>' +
+        '<div style="font-size:16px;font-weight:700;">' + (w.value||0) + '</div></div>';
     }});
     html += '</div></div>';
   }}
 
-  // Torah word matches
   const twm = (r.cross_comparison||{{}}).torah_word_matches || {{}};
   const twKeys = Object.keys(twm).filter(k => (twm[k]||[]).length > 0);
   if (twKeys.length) {{
@@ -469,8 +620,8 @@ function renderReport(d) {{
     twKeys.forEach(key => {{
       const [text, role] = key.split('|');
       const val = (twm[key][0]||{{}}).shared_value || '';
-      html += '<div style="margin-bottom:12px;"><div style="font-size:12px;font-weight:600;color:var(--slate);">' +
-        esc(text) + ' (' + esc(ROLE_LABELS[role]||role) + ') — value ' + val + '</div><div class="torah-words" style="margin-top:4px;">';
+      html += '<div style="margin-bottom:12px;"><div style="font-size:11px;font-weight:600;color:var(--slate);">' +
+        esc(text) + ' (' + esc(ROLE_LABELS[role]||role) + ') = ' + val + '</div><div class="torah-words" style="margin-top:4px;">';
       (twm[key]||[]).slice(0,10).forEach(w => {{
         html += '<span class="torah-word">' + esc(w.word) + ' <span class="torah-word-freq">\\u00d7' + w.frequency + '</span></span>';
       }});
@@ -479,15 +630,14 @@ function renderReport(d) {{
     html += '</div>';
   }}
 
-  // Cross matches
   const cm = (r.cross_comparison||{{}}).cross_matches || [];
   if (cm.length) {{
     html += '<div class="card"><div class="card-title">Cross-Comparison Discoveries</div>';
     cm.slice(0,8).forEach(m => {{
       const a = m.component_a||{{}}, b = m.component_b||{{}};
-      html += '<div class="match-card"><div style="display:flex;align-items:center;gap:10px;">' +
+      html += '<div class="match-card"><div style="display:flex;align-items:center;gap:8px;">' +
         '<div class="match-value">' + (m.value||'') + '</div>' +
-        '<span class="pill" style="background:rgba(45,90,123,0.1);color:var(--accent);border:1px solid rgba(45,90,123,0.2);">' +
+        '<span class="pill" style="background:rgba(45,90,123,0.08);color:var(--accent);border-color:rgba(45,90,123,0.15);">' +
         esc((m.match_type||'').replace(/_/g,' ')) + '</span></div>' +
         '<div class="match-detail"><strong>' + esc(a.text||'') + '</strong> (' + esc(ROLE_LABELS[a.role]||a.role||'') + ', ' + esc(METHOD_LABELS[a.method]||a.method||'') + ')' +
         ' = <strong>' + esc(b.text||'') + '</strong> (' + esc(ROLE_LABELS[b.role]||b.role||'') + ', ' + esc(METHOD_LABELS[b.method]||b.method||'') + ')</div></div>';
@@ -495,7 +645,6 @@ function renderReport(d) {{
     html += '</div>';
   }}
 
-  // Torah findings
   const findings = [
     [s.headline_findings||[], 'Primary Torah Findings', 'headline'],
     [s.supporting_findings||[], 'Supporting Findings', 'supporting'],
@@ -506,7 +655,7 @@ function renderReport(d) {{
     html += '<div class="card"><div class="card-title">Torah Encodings</div>';
     if (vl) html += '<div class="sefirah-badge" style="margin-bottom:12px;"><span class="sefirah-name">' + esc(vl) + '</span></div>';
     findings.forEach(([rows, title, tone]) => {{
-      html += '<h3 style="font-size:15px;margin:12px 0 8px;color:var(--slate);">' + esc(title) + '</h3>';
+      html += '<h3 style="font-size:13px;margin:12px 0 8px;color:var(--slate);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">' + esc(title) + '</h3>';
       rows.slice(0,5).forEach(f => {{
         const v = f.verse_context || {{}};
         const ref = v.ref || '';
@@ -523,21 +672,19 @@ function renderReport(d) {{
     html += '</div>';
   }}
 
-  // Graph data
   const graph = d.graph || {{}};
   const gnodes = graph.nodes || [];
-  const gedges = graph.edges || [];
   if (gnodes.length > 1) {{
     const gs = graph.summary || {{}};
     html += '<div class="card"><div class="card-title">Gematria Relationship Graph</div>' +
-      '<p style="font-size:12px;color:var(--slate);margin-bottom:8px;">' +
-      (gs.name_components||0) + ' name components, ' + (gs.torah_words||0) + ' Torah words, ' +
-      (gs.same_value_edges||0) + ' same-value links, ' + (gs.cross_method_edges||0) + ' cross-method matches</p>';
+      '<p style="font-size:11px;color:var(--slate);margin-bottom:8px;">' +
+      (gs.name_components||0) + ' components, ' + (gs.torah_words||0) + ' Torah words, ' +
+      (gs.same_value_edges||0) + ' same-value, ' + (gs.cross_method_edges||0) + ' cross-method</p>';
     const nameNodes = gnodes.filter(n => n.type === 'name_component');
     const torahNodes = gnodes.filter(n => n.type === 'torah_word').slice(0, 20);
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">';
     nameNodes.forEach(n => {{
-      html += '<div style="padding:6px 14px;border-radius:999px;background:var(--gold);color:white;font-size:13px;font-weight:600;direction:rtl;">' + esc(n.text) + '</div>';
+      html += '<div style="padding:6px 14px;border-radius:999px;background:var(--gold);color:white;font-size:12px;font-weight:700;direction:rtl;">' + esc(n.text) + '</div>';
     }});
     html += '</div><div class="torah-words">';
     torahNodes.forEach(n => {{
@@ -551,9 +698,8 @@ function renderReport(d) {{
 
 function renderReverseLookup(data, val, method) {{
   const words = data.words || [];
-  if (!words.length) return '<div class="card"><p style="color:var(--slate);">No words found with value ' + val + '.</p></div>';
-  let html = '<div class="card"><div class="card-title">Value ' + val + ' (' + esc(METHOD_LABELS[method]||method) + ')</div>';
-  html += '<p style="font-size:13px;color:var(--slate);margin-bottom:10px;">' + words.length + ' word forms found</p>';
+  if (!words.length) return '<p style="color:var(--slate);padding:12px;">No words found with value ' + val + '.</p>';
+  let html = '<div style="margin-top:12px;"><div style="font-size:13px;color:var(--slate);margin-bottom:8px;">' + words.length + ' word forms with value <strong>' + val + '</strong> (' + esc(METHOD_LABELS[method]||method) + ')</div>';
   html += '<div class="torah-words">';
   words.forEach(w => {{
     html += '<span class="torah-word">' + esc(w.word) + ' <span class="torah-word-freq">\\u00d7' + w.frequency + '</span></span>';

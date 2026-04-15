@@ -110,6 +110,41 @@ class TestSearchableComponents:
         assert "gindi" in p.display_name
 
 
+class TestGenderAwareParsing:
+    def test_hebrew_mother_first(self):
+        """User's exact case: משה בן מרים ויצחק גינדי"""
+        p = parse_name("משה בן מרים ויצחק גינדי")
+        assert p.father_name == "יצחק"
+        assert p.mother_name == "מרים"
+        assert p.surname == "גינדי"
+
+    def test_hebrew_father_first(self):
+        p = parse_name("משה בן יצחק ומרים גינדי")
+        assert p.father_name == "יצחק"
+        assert p.mother_name == "מרים"
+
+    def test_english_mother_first(self):
+        p = parse_name("moshe ben miriam v yitzchak gindi")
+        assert p.father_name == "yitzchak"
+        assert p.mother_name == "miriam"
+        assert p.surname == "gindi"
+
+    def test_english_father_first(self):
+        p = parse_name("moshe ben yitzchak v miriam gindi")
+        assert p.father_name == "yitzchak"
+        assert p.mother_name == "miriam"
+
+    def test_bat_with_parents(self):
+        p = parse_name("שרה בת רבקה ואברהם")
+        assert p.father_name == "אברהם"
+        assert p.mother_name == "רבקה"
+
+    def test_unknown_names_keep_order(self):
+        p = parse_name("moshe ben shmendrik v ploni")
+        assert p.father_name == "shmendrik"
+        assert p.mother_name == "ploni"
+
+
 class TestEdgeCases:
     def test_bar_patronymic(self):
         p = parse_name("shimon bar yochai")

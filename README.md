@@ -32,7 +32,16 @@ There is a Jewish tradition that every person's name can be found in the Torah. 
 
 **Statistical significance** — empirical p-values against null models with Benjamini-Hochberg FDR correction.
 
-**Web UI** — Full browser interface at `http://localhost:8080/` with name analysis, reverse lookup, and interactive results. No LLM required.
+**Web UI** — Full browser interface at `http://localhost:8080/` with name analysis, reverse lookup, progress bar with ETA, and interactive results. No LLM required.
+
+**Run logging** — Every operation is timed and logged to `data/run_log.jsonl`. The ETA estimator uses historical data to predict completion time based on input complexity.
+
+## Hardware Requirements
+
+- **CPU only** — no GPU needed. All computation is pure Python + SQLite.
+- **Memory**: ~52 MB peak RSS during a full search. ~16 MB idle.
+- **Storage**: ~50 MB for the SQLite database.
+- **Python**: 3.11+ required.
 
 ## Setup
 
@@ -137,6 +146,8 @@ ag-serve-api --port 8080
 | GET | `/health` | Health check |
 | POST | `/api/full-report` | Comprehensive name analysis with graph |
 | POST | `/api/reverse-lookup` | Find words by gematria value |
+| POST | `/api/estimate` | ETA estimate for an operation |
+| GET | `/api/run-stats` | Aggregated run history stats |
 | POST | `/api/showcase-name` | Curated presentable result |
 | POST | `/api/search-name` | Direct multi-method search |
 | GET | `/for-agents` | Agent instruction page |
@@ -221,7 +232,8 @@ src/autogematria/
     harness.py                # Frozen benchmark runner
     scorer.py                 # Composite scoring metric
     ground_truth.py           # Dataset loader
-tests/                        # 118 tests
+  run_logger.py               # Run timing, logging, ETA estimation
+tests/                        # 136 tests
 ```
 
 ## Tests

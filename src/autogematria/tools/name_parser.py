@@ -35,6 +35,82 @@ _HEB_AND = re.compile(r"\b[וו](?=\S)")
 _PATRONYMIC_MARKERS = {"ben", "bar", "ibn", "bat", "bas"}
 _CONNECTOR_WORDS = {"v", "ve", "and", "u", "v'"}
 
+_FEMALE_NAMES_HEBREW = {
+    "מרים", "שרה", "רחל", "לאה", "רבקה", "חנה", "דבורה", "דינה", "אסתר",
+    "רות", "תמר", "צפורה", "יעל", "מיכל", "נעמי", "הדסה", "יוכבד",
+    "בתשבע", "חוה", "יהודית", "אביגיל", "ברכה", "שושנה", "גולדה",
+    "פרידה", "זלדה", "בילה", "פייגא", "טובה", "שירה", "נועה", "נעה",
+    "אליסה", "דורית", "עליזה", "תהילה", "אורה", "שולמית", "ציפורה",
+    "פנינה", "בת ציון", "מלכה",
+}
+_FEMALE_NAMES_LATIN = {
+    "miriam", "sarah", "sara", "rachel", "leah", "lea", "rivka", "rebecca",
+    "chana", "hannah", "devorah", "deborah", "dinah", "dina", "esther",
+    "ruth", "tamar", "tzipora", "yael", "michal", "naomi", "hadassah",
+    "yocheved", "batsheva", "chava", "eve", "yehudit", "judith", "avigail",
+    "bracha", "shoshana", "golda", "frida", "zelda", "bila", "feiga",
+    "tova", "shira", "noa", "alisa", "alyssa", "dorit", "aliza",
+    "tehila", "ora", "shulamit", "tzipora", "penina", "malka",
+}
+_MALE_NAMES_HEBREW = {
+    "אברהם", "יצחק", "יעקב", "משה", "אהרן", "אהרון", "דוד", "שלמה",
+    "יוסף", "בנימין", "שמעון", "ראובן", "לוי", "יהודה", "דן", "נפתלי",
+    "גד", "אשר", "יששכר", "זבולון", "מנשה", "אפרים", "יהושע",
+    "שמואל", "אליהו", "ישעיהו", "ירמיהו", "יחזקאל", "עקיבא", "מאיר",
+    "חיים", "ברוך", "צבי", "אריה", "זאב", "עזריאל", "דניאל",
+    "נתנאל", "רפאל", "גבריאל", "מיכאל", "עובדיה", "יונה", "שאול",
+    "אלעזר", "נחמן", "שלום", "מרדכי", "נח",
+}
+_MALE_NAMES_LATIN = {
+    "abraham", "avraham", "yitzchak", "isaac", "yaakov", "jacob", "moshe",
+    "moses", "aaron", "david", "dovid", "shlomo", "solomon", "yosef",
+    "joseph", "binyamin", "benjamin", "shimon", "simon", "reuven",
+    "levi", "yehuda", "judah", "dan", "naftali", "gad", "asher",
+    "yissachar", "zevulun", "menashe", "efraim", "ephraim", "yehoshua",
+    "joshua", "shmuel", "samuel", "eliyahu", "elijah", "yeshayahu",
+    "isaiah", "yirmiyahu", "jeremiah", "yechezkel", "ezekiel", "akiva",
+    "meir", "chaim", "haim", "baruch", "tzvi", "zvi", "aryeh", "ari",
+    "zev", "azriel", "daniel", "netanel", "rafael", "gavriel", "michael",
+    "ovadia", "yonah", "saul", "shaul", "elazar", "nachman", "shalom",
+    "mordechai", "noach", "noah",
+}
+
+
+def _is_female_name(name: str) -> bool:
+    clean = name.strip()
+    if contains_hebrew(clean):
+        return clean in _FEMALE_NAMES_HEBREW
+    return clean.lower() in _FEMALE_NAMES_LATIN
+
+
+def _is_male_name(name: str) -> bool:
+    clean = name.strip()
+    if contains_hebrew(clean):
+        return clean in _MALE_NAMES_HEBREW
+    return clean.lower() in _MALE_NAMES_LATIN
+
+
+def _assign_parent_roles(
+    first_parent: str,
+    second_parent: str,
+) -> tuple[str, str]:
+    """Determine which parent is father vs mother using gender heuristics.
+
+    In Jewish naming, the conventional order after 'ben/bat' is 'father v'mother',
+    but people sometimes reverse it. We detect this by checking known name genders.
+    """
+    first_female = _is_female_name(first_parent)
+    first_male = _is_male_name(first_parent)
+    second_female = _is_female_name(second_parent)
+    second_male = _is_male_name(second_parent)
+
+    if first_female and not first_male and (second_male or not second_female):
+        return second_parent, first_parent
+    if second_male and not second_female and first_female and not first_male:
+        return second_parent, first_parent
+
+    return first_parent, second_parent
+
 
 @dataclass(frozen=True)
 class ParsedName:
@@ -175,10 +251,18 @@ def _parse_hebrew_name(raw: str) -> ParsedName:
     and_parts = _split_on_and(parent_part)
 
     if len(and_parts) >= 2:
-        father_name = and_parts[0].strip()
+        raw_first_parent = and_parts[0].strip()
         remainder = and_parts[1].strip().split()
-        mother_name = remainder[0] if remainder else None
+        raw_second_parent = remainder[0] if remainder else None
         surname = remainder[-1] if len(remainder) > 1 else None
+
+        if raw_second_parent:
+            father_name, mother_name = _assign_parent_roles(
+                raw_first_parent, raw_second_parent,
+            )
+        else:
+            father_name, mother_name = raw_first_parent, None
+
         return ParsedName(
             raw_input=raw,
             first_name=first_name,
@@ -253,18 +337,25 @@ def _parse_english_name(raw: str) -> ParsedName:
     and_parts = _split_on_and(parent_part)
 
     if len(and_parts) >= 2:
-        father_tokens = and_parts[0].strip().split()
-        rest_tokens = and_parts[1].strip().split()
-        father_name = father_tokens[0] if father_tokens else None
-        surname_from_father = father_tokens[-1] if len(father_tokens) > 1 else None
+        first_part_tokens = and_parts[0].strip().split()
+        second_part_tokens = and_parts[1].strip().split()
+        raw_first_parent = first_part_tokens[0] if first_part_tokens else None
+        surname_from_first = first_part_tokens[-1] if len(first_part_tokens) > 1 else None
 
-        mother_name = rest_tokens[0] if rest_tokens else None
-        surname = rest_tokens[-1] if len(rest_tokens) > 1 else surname_from_father
+        raw_second_parent = second_part_tokens[0] if second_part_tokens else None
+        surname = second_part_tokens[-1] if len(second_part_tokens) > 1 else surname_from_first
 
         if surname is None and len(tokens) > patron_idx + 3:
             possible_surname = tokens[-1].lower()
             if possible_surname not in _PATRONYMIC_MARKERS and possible_surname not in _CONNECTOR_WORDS:
                 surname = tokens[-1]
+
+        if raw_first_parent and raw_second_parent:
+            father_name, mother_name = _assign_parent_roles(
+                raw_first_parent, raw_second_parent,
+            )
+        else:
+            father_name, mother_name = raw_first_parent, raw_second_parent
 
         return ParsedName(
             raw_input=raw,

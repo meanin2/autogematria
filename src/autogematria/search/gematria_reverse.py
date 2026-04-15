@@ -48,6 +48,7 @@ def reverse_lookup(
     db_path=DB_PATH,
 ) -> list[dict[str, Any]]:
     """Find all Tanakh word forms with the given gematria value under one method."""
+    max_results = max(1, min(max_results, 500))
     conn = _conn(db_path)
     try:
         rows = conn.execute(

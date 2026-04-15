@@ -31,32 +31,77 @@ def _normalize_bool(value: Any, *, default: bool) -> bool:
 
 
 def _handle_full_report(body: dict[str, Any]) -> dict[str, Any]:
+    from autogematria.normalize import FinalsPolicy, normalize_hebrew
     from autogematria.research.html_export import prepare_showcase_payload
     from autogematria.research.name_report import build_name_report
+    from autogematria.run_logger import RunTimer
     from autogematria.search.gematria_reverse import build_name_gematria_graph
     from autogematria.tools.tool_functions import showcase_name as _showcase
 
     query = body["query"]
-    report = build_name_report(query)
+    clean = normalize_hebrew(query, FinalsPolicy.PRESERVE).replace(" ", "")
+    timer = RunTimer(
+        operation="full_report",
+        input_text=query,
+        letter_count=len(clean),
+        word_count=len(query.split()),
+    )
 
-    showcase_raw = _showcase(report["full_hebrew_name"])
-    prepared = prepare_showcase_payload(showcase_raw)
-    showcase = prepared.get("showcase", {})
+    with timer:
+        report = build_name_report(query)
+        components = [(c["text"], c["role"]) for c in report.get("hebrew_components", [])]
+        timer.component_count = len(components)
 
-    components = [(c["text"], c["role"]) for c in report.get("hebrew_components", [])]
-    graph = build_name_gematria_graph(components) if components else {}
+        showcase_raw = _showcase(report["full_hebrew_name"])
+        prepared = prepare_showcase_payload(showcase_raw)
+        showcase = prepared.get("showcase", {})
 
-    return {"report": report, "showcase": showcase, "graph": graph}
+        graph = build_name_gematria_graph(components) if components else {}
+        timer.set_result_metadata(
+            verdict=showcase.get("verdict_label", ""),
+            cross_matches=report.get("cross_comparison", {}).get("summary", {}).get("total_cross_matches", 0),
+        )
+
+    return {
+        "report": report,
+        "showcase": showcase,
+        "graph": graph,
+        "timing": {"elapsed_seconds": round(timer.elapsed_seconds, 2)},
+    }
 
 
 def _handle_reverse_lookup(body: dict[str, Any]) -> dict[str, Any]:
+    from autogematria.run_logger import RunTimer
     from autogematria.search.gematria_reverse import reverse_lookup
 
     value = int(body["value"])
     method = body.get("method", "MISPAR_HECHRACHI")
     max_results = int(body.get("max_results", 50))
-    words = reverse_lookup(value, method=method, max_results=max_results)
+
+    with RunTimer(operation="reverse_lookup", input_text=str(value)):
+        words = reverse_lookup(value, method=method, max_results=max_results)
+
     return {"value": value, "method": method, "words": words}
+
+
+def _handle_estimate(body: dict[str, Any]) -> dict[str, Any]:
+    from autogematria.normalize import FinalsPolicy, normalize_hebrew
+    from autogematria.run_logger import estimate_seconds
+
+    query = body.get("query", "")
+    operation = body.get("operation", "full_report")
+    clean = normalize_hebrew(query, FinalsPolicy.PRESERVE).replace(" ", "") if query else ""
+    est = estimate_seconds(
+        operation,
+        letter_count=len(clean),
+        word_count=len(query.split()) if query else 0,
+    )
+    return {"estimated_seconds": est, "operation": operation}
+
+
+def _handle_run_stats(_body: dict[str, Any]) -> dict[str, Any]:
+    from autogematria.run_logger import get_run_stats
+    return get_run_stats()
 
 
 def _build_routes() -> dict[str, dict[str, Any]]:
@@ -101,6 +146,12 @@ def _build_routes() -> dict[str, dict[str, Any]]:
         "/api/reverse-lookup": {
             "POST": _handle_reverse_lookup,
         },
+        "/api/estimate": {
+            "POST": _handle_estimate,
+        },
+        "/api/run-stats": {
+            "GET": lambda _body: _handle_run_stats({}),
+        },
     }
 
 
@@ -144,6 +195,9 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
         try:
             body = self._read_json_body() if method == "POST" else {}
             payload = route[method](body)
+        except json.JSONDecodeError as exc:
+            self._json_response({"error": f"Invalid JSON: {exc}"}, status=400)
+            return
         except KeyError as exc:
             self._json_response({"error": f"Missing required field: {exc.args[0]}"}, status=400)
             return

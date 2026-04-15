@@ -45,6 +45,8 @@ The server (`ag-serve-api`) exposes:
 - `GET /` — Web UI
 - `POST /api/full-report` — `{"query": "moshe ben yitzchak"}` → full analysis + graph
 - `POST /api/reverse-lookup` — `{"value": 345, "method": "MISPAR_HECHRACHI"}` → matching words
+- `POST /api/estimate` — `{"query": "...", "operation": "full_report"}` → ETA in seconds
+- `GET /api/run-stats` — aggregated run history
 - `POST /api/showcase-name` — curated presentable result
 - `POST /api/search-name` — raw multi-method search
 
@@ -65,3 +67,5 @@ The server (`ag-serve-api`) exposes:
 **Add a new kabbalistic concept:** Extend `research/kabbalistic.py` and wire into `research/name_report.py`.
 
 **Expand gematria connections library:** Edit `data/gematria/connections.json` (source-backed pairs with Talmudic/Kabbalistic references).
+
+**Add gender recognition for names:** Update `_FEMALE_NAMES_HEBREW` / `_MALE_NAMES_HEBREW` in `tools/name_parser.py`.
