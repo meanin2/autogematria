@@ -1,11 +1,11 @@
 """Structured parsing of Jewish name input.
 
 Handles patterns like:
-  - "משה" (single name)
-  - "משה גינדי" (first + surname)
-  - "moshe ben yitzchak" (first + patronymic)
-  - "moshe ben yitzchak gindi" (first + patronymic + surname)
-  - "moshe ben yitzchak v'miriam gindi" (first + father + mother + surname)
+  - "דוד" (single name)
+  - "דוד המלך" (first + surname)
+  - "david ben yishai" (first + patronymic)
+  - "david ben yishai hamelech" (first + patronymic + surname)
+  - "david ben yishai v'nitzevet hamelech" (first + father + mother + surname)
   - "שרה בת אברהם ורבקה" (first + father + mother, Hebrew)
 """
 

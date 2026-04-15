@@ -5,17 +5,17 @@ Torah name-finding and gematria analysis engine. All computation is deterministi
 ## Quick Start
 
 ```bash
-export PYTHONPATH="/home/moshe/autogematria/src:/home/moshe/.local/lib/python3.12/site-packages"
-cd /home/moshe/autogematria
+cd /home/ubuntu/gematria
+source .venv/bin/activate
 ```
 
 ## Running Tests
 
 ```bash
-python3 -m pytest tests/ -v --tb=short
+source .venv/bin/activate && python3 -m pytest tests/ -v --tb=short
 ```
 
-The venv at `.venv/` has `python3` and `pytest` but **no pip**. Dependencies (`hebrew`, `httpx`, `networkx`, `tqdm`, `scipy`) are installed in `~/.local/lib/python3.12/site-packages`. Always include that path in `PYTHONPATH`.
+The project venv at `/home/ubuntu/gematria/.venv/` is an editable install of the package (`pip install -e ".[dev]"`) with all dependencies (`hebrew`, `httpx`, `networkx`, `tqdm`, `scipy`, `pytest`) already resolved. Activate it and everything imports without extra `PYTHONPATH` tweaks.
 
 ## Key Architecture Decisions
 
@@ -43,7 +43,7 @@ The venv at `.venv/` has `python3` and `pytest` but **no pip**. Dependencies (`h
 The server (`ag-serve-api`) exposes:
 
 - `GET /` — Web UI
-- `POST /api/full-report` — `{"query": "moshe ben yitzchak"}` → full analysis + graph
+- `POST /api/full-report` — `{"query": "david ben yishai"}` → full analysis + graph
 - `POST /api/reverse-lookup` — `{"value": 345, "method": "MISPAR_HECHRACHI"}` → matching words
 - `POST /api/estimate` — `{"query": "...", "operation": "full_report"}` → ETA in seconds
 - `GET /api/run-stats` — aggregated run history

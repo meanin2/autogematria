@@ -64,7 +64,7 @@ def main() -> None:
         prog="ag-full-report",
         description="Generate a comprehensive name analysis report",
     )
-    parser.add_argument("query", help="Name in Hebrew or English (e.g. 'moshe ben yitzchak gindi')")
+    parser.add_argument("query", help="Name in Hebrew or English (e.g. 'david ben yishai')")
     parser.add_argument("--output", default="/tmp/autogematria_report", help="Output directory")
     parser.add_argument("--publish", action="store_true", help="Publish to here.now")
     parser.add_argument("--json", action="store_true", help="Output JSON result")

@@ -19,7 +19,7 @@ There is a Jewish tradition that every person's name can be found in the Torah. 
 - **Roshei Tevot** — first letters of consecutive words
 - **Sofei Tevot** — last letters of consecutive words
 
-**Name parsing** — Understands complex Jewish name structures: `moshe ben yitzchak and miriam gindi`, `שרה בת אברהם ורחל כהן`. Identifies first name, patronymic, father/mother, and surname.
+**Name parsing** — Understands complex Jewish name structures: `david ben yishai and nitzevet`, `שרה בת אברהם ורחל כהן`. Identifies first name, patronymic, father/mother, and surname.
 
 **Kabbalistic analysis** — Orthodox sources (Sefer Yetzirah, Arizal, Zohar):
 - Letter meanings and symbolism
@@ -82,14 +82,14 @@ ag-search "אברהם" Genesis
 ag-search "משה" --corpus-scope tanakh
 
 # Comprehensive name analysis report
-ag-full-report "moshe ben yitzchak gindi"
+ag-full-report "david ben yishai"
 ag-full-report "שרה בת אברהם" --publish --json
 
 # Visual Torah name report with highlighted pesukim
-ag-name-report "משה גינדי" --publish --json
+ag-name-report "דוד בן ישי" --publish --json
 
 # Research-grade multi-method search
-ag-research-name "moshe gindi" --json
+ag-research-name "david ben yishai" --json
 
 # Individual tools
 ag-search-name "משה" --json
@@ -98,7 +98,7 @@ ag-explore-gematria-connections "משה" --json
 ag-read-verse Genesis 1 1 --json
 ag-inspect-els "תורה" 50 5 --json
 ag-corpus-stats --json
-ag-verify "משה גינדי" --word-breakdown
+ag-verify "דוד בן ישי" --word-breakdown
 ```
 
 ### Python API
@@ -117,7 +117,7 @@ for r in results[:10]:
 ```python
 # Full name report
 from autogematria.research.name_report import build_name_report
-report = build_name_report("moshe ben yitzchak gindi")
+report = build_name_report("david ben yishai")
 
 # Reverse gematria lookup
 from autogematria.search.gematria_reverse import reverse_lookup
@@ -125,7 +125,7 @@ words = reverse_lookup(345, method="MISPAR_HECHRACHI")
 
 # Gematria relationship graph
 from autogematria.search.gematria_reverse import build_name_gematria_graph
-graph = build_name_gematria_graph([("משה", "first_name"), ("גינדי", "surname")])
+graph = build_name_gematria_graph([("דוד", "first_name"), ("בן ישי", "patronymic")])
 
 # Kabbalistic analysis
 from autogematria.research.kabbalistic import full_kabbalistic_analysis
@@ -160,7 +160,7 @@ ag-serve-api --port 8080
 # Full report
 curl -X POST http://localhost:8080/api/full-report \
   -H "Content-Type: application/json" \
-  -d '{"query":"moshe ben yitzchak gindi"}'
+  -d '{"query":"david ben yishai"}'
 
 # Reverse lookup
 curl -X POST http://localhost:8080/api/reverse-lookup \
