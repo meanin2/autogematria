@@ -438,7 +438,7 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
 </div>
 
 <script>
-const API = "{base_url}";
+const API = "";
 let progressInterval = null;
 
 function showView(name, btn) {{
