@@ -300,7 +300,7 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
         <button class="search-btn" id="search-btn" onclick="runSearch()">Analyze Name</button>
       </div>
       <div class="example-names">
-        <span class="example-chip" onclick="setExample('משה בן יצחק ומרים גינדי')">משה בן יצחק ומרים גינדי</span>
+        <span class="example-chip" onclick="setExample('דוד בן ישי')">דוד בן ישי</span>
         <span class="example-chip" onclick="setExample('שרה בת אברהם ורבקה כהן')">שרה בת אברהם ורבקה כהן</span>
         <span class="example-chip" onclick="setExample('david ben shlomo')">david ben shlomo</span>
       </div>
@@ -397,6 +397,7 @@ function setExample(text) {{
   document.getElementById('name-input').focus();
 }}
 
+document.getElementById('name-input').value = '';
 document.getElementById('name-input').addEventListener('keydown', e => {{
   if (e.key === 'Enter') runSearch();
 }});
@@ -440,26 +441,46 @@ async function runSearch() {{
   const errDiv = document.getElementById('search-error');
   btn.disabled = true; results.classList.add('hidden'); errDiv.classList.add('hidden');
 
-  let estSec = 15;
+  let estSec = 90;
   try {{
     const estResp = await fetch(API + '/api/estimate', {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{query: q, operation: 'full_report'}})
     }});
-    if (estResp.ok) {{ const ed = await estResp.json(); estSec = ed.estimated_seconds || 15; }}
+    if (estResp.ok) {{ const ed = await estResp.json(); estSec = Math.max(60, ed.estimated_seconds || 90); }}
   }} catch(e) {{}}
 
   startProgress(estSec);
+  const label = document.getElementById('progress-label');
 
   try {{
-    const resp = await fetch(API + '/api/full-report', {{
+    const submit = await fetch(API + '/api/jobs', {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
-      body: JSON.stringify({{query: q}})
+      body: JSON.stringify({{operation: 'full_report', query: q}})
     }});
-    if (!resp.ok) throw new Error('Server error: ' + resp.status);
-    const data = await resp.json();
+    if (!submit.ok) throw new Error('Submit failed: ' + submit.status);
+    const sub = await submit.json();
+    const jobId = sub.job_id;
+
+    let job;
+    while (true) {{
+      await new Promise(r => setTimeout(r, 1500));
+      const pr = await fetch(API + '/api/jobs/' + jobId);
+      if (!pr.ok) throw new Error('Poll failed: ' + pr.status);
+      job = await pr.json();
+      if (job.status === 'queued') {{
+        label.textContent = 'In queue — position ' + (job.queue_position || '?');
+      }} else if (job.status === 'running') {{
+        label.textContent = 'Analyzing your name...';
+      }} else if (job.status === 'done') {{
+        break;
+      }} else if (job.status === 'error') {{
+        throw new Error(job.error || 'job failed');
+      }}
+    }}
+
     stopProgress();
-    results.innerHTML = renderReport(data);
+    results.innerHTML = renderReport(job.result);
     results.classList.remove('hidden');
     results.scrollIntoView({{behavior:'smooth', block:'start'}});
   }} catch(e) {{

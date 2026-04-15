@@ -17,8 +17,41 @@ from typing import Any
 from autogematria.config import DATA_DIR
 
 _write_lock = threading.Lock()
+_cache_lock = threading.Lock()
+_records_cache: list[dict[str, Any]] = []
+_records_cache_mtime: float = -1.0
 
 LOG_PATH = DATA_DIR / "run_log.jsonl"
+
+
+def _all_records() -> list[dict[str, Any]]:
+    """Return all log records, cached and invalidated on file mtime change."""
+    global _records_cache, _records_cache_mtime
+    if not LOG_PATH.exists():
+        return []
+    try:
+        mtime = LOG_PATH.stat().st_mtime
+    except OSError:
+        return []
+    with _cache_lock:
+        if mtime == _records_cache_mtime and _records_cache:
+            return _records_cache
+        records: list[dict[str, Any]] = []
+        try:
+            with open(LOG_PATH, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        records.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        except OSError:
+            return _records_cache
+        _records_cache = records
+        _records_cache_mtime = mtime
+        return records
 
 _DEFAULT_ESTIMATES = {
     "name_report": 0.8,
@@ -118,27 +151,15 @@ def estimate_seconds(
 
 def get_run_stats() -> dict[str, Any]:
     """Return aggregate statistics about all logged runs."""
-    if not LOG_PATH.exists():
+    records = _all_records()
+    if not records:
         return {"total_runs": 0, "operations": {}}
 
     ops: dict[str, list[float]] = {}
-    total = 0
-    try:
-        with open(LOG_PATH, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                    op = record.get("operation", "unknown")
-                    elapsed = record.get("elapsed_seconds", 0)
-                    ops.setdefault(op, []).append(elapsed)
-                    total += 1
-                except json.JSONDecodeError:
-                    continue
-    except Exception:
-        return {"total_runs": 0, "operations": {}}
+    for record in records:
+        op = record.get("operation", "unknown")
+        elapsed = record.get("elapsed_seconds", 0)
+        ops.setdefault(op, []).append(elapsed)
 
     summary: dict[str, Any] = {}
     for op, times in ops.items():
@@ -150,25 +171,9 @@ def get_run_stats() -> dict[str, Any]:
             "total_seconds": round(sum(times), 2),
         }
 
-    return {"total_runs": total, "operations": summary}
+    return {"total_runs": len(records), "operations": summary}
 
 
 def _load_history(operation: str, max_records: int = 50) -> list[dict[str, Any]]:
-    if not LOG_PATH.exists():
-        return []
-    records = []
-    try:
-        with open(LOG_PATH, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                    if record.get("operation") == operation:
-                        records.append(record)
-                except json.JSONDecodeError:
-                    continue
-    except Exception:
-        return []
-    return records[-max_records:]
+    matched = [r for r in _all_records() if r.get("operation") == operation]
+    return matched[-max_records:]

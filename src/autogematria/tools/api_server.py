@@ -104,6 +104,20 @@ def _handle_run_stats(_body: dict[str, Any]) -> dict[str, Any]:
     return get_run_stats()
 
 
+def _handle_submit_full_report(body: dict[str, Any]) -> dict[str, Any]:
+    from autogematria import jobs
+
+    if "query" not in body or not str(body["query"]).strip():
+        raise ValueError("query is required")
+    job_id = jobs.create_job("full_report", {"query": body["query"]})
+    job = jobs.get_job(job_id) or {}
+    return {
+        "job_id": job_id,
+        "status": job.get("status", "queued"),
+        "queue_position": job.get("queue_position", 1),
+    }
+
+
 def _build_routes() -> dict[str, dict[str, Any]]:
     return {
         "/health": {
@@ -152,6 +166,9 @@ def _build_routes() -> dict[str, dict[str, Any]]:
         "/api/run-stats": {
             "GET": lambda _body: _handle_run_stats({}),
         },
+        "/api/jobs": {
+            "POST": _handle_submit_full_report,
+        },
     }
 
 
@@ -172,6 +189,16 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method: str) -> None:
         parsed = urlparse(self.path)
+        if method == "GET" and parsed.path.startswith("/api/jobs/"):
+            from autogematria import jobs as _jobs
+
+            job_id = parsed.path[len("/api/jobs/") :]
+            job = _jobs.get_job(job_id)
+            if job is None:
+                self._json_response({"error": "job not found"}, status=404)
+                return
+            self._json_response(job)
+            return
         if method == "GET" and parsed.path in ("/", "/ui"):
             from autogematria.tools.web_ui import build_ui_html
             self._html_response(build_ui_html(self._base_url()))
@@ -232,6 +259,9 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
 
     def _base_url(self) -> str:
         proto = self.headers.get("X-Forwarded-Proto") or "http"
@@ -267,6 +297,9 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
 
 
 def create_server(port: int) -> ThreadingHTTPServer:
+    from autogematria.job_worker import start_worker
+
+    start_worker()
     ThreadingHTTPServer.allow_reuse_address = True
     return ThreadingHTTPServer(("0.0.0.0", port), AutoGematriaHandler)
 

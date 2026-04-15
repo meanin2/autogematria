@@ -63,7 +63,7 @@ class TestWebUI:
         html = build_ui_html("http://localhost:8080")
         assert "AutoGematria" in html
         assert "name-input" in html
-        assert "/api/full-report" in html
+        assert "/api/jobs" in html
         assert "/api/reverse-lookup" in html
 
     def test_ui_has_all_views(self):

@@ -1,9 +1,10 @@
 """Constants, paths, and Tanakh book registry."""
 
+import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR = Path(os.environ.get("AUTOGEMATRIA_DATA_DIR") or (PROJECT_ROOT / "data"))
 CORPUS_DIR = DATA_DIR / "corpus"
 DB_PATH = DATA_DIR / "autogematria.db"
 
