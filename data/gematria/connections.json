@@ -169,12 +169,12 @@
       "notes": "Emet (truth) = 441 = 21². The seal of Hashem is truth (Shabbat 55a)."
     },
     {
-      "value": 365,
+      "value": 364,
       "method": "MISPAR_HECHRACHI",
       "terms": ["השטן"],
       "relation_type": "talmudic_reference",
       "source": "Yoma 20a",
-      "notes": "HaSatan = 364 (plus kolel = 365, days of the year). The Satan has power 364 days but not on Yom Kippur."
+      "notes": "HaSatan = 364. With kolel (364+1) = 365, the days of the year. The Satan has power 364 days but not on Yom Kippur."
     },
     {
       "value": 430,
@@ -187,10 +187,10 @@
     {
       "value": 340,
       "method": "MISPAR_HECHRACHI",
-      "terms": ["שלום", "ספר"],
-      "relation_type": "traditional_equivalence",
+      "terms": ["ספר"],
+      "relation_type": "foundational",
       "source": "Traditional",
-      "notes": "Shalom (peace) and Sefer (book) both equal 376. Peace is the vessel that holds all blessing."
+      "notes": "Sefer (book) = 340. The Torah is the Book of books."
     },
     {
       "value": 376,
@@ -217,28 +217,28 @@
       "notes": "Shamayim (heaven) = 390, from 'אש ומים' — fire and water."
     },
     {
-      "value": 40,
+      "value": 34,
       "method": "MISPAR_HECHRACHI",
       "terms": ["גאל"],
       "relation_type": "traditional_reference",
       "source": "Classical",
-      "notes": "Goel (redeemer) = 40, connected to the 40 days of rain, 40 days on Sinai, 40 years in desert."
+      "notes": "Goel (redeemer) = 34."
     },
     {
       "value": 17,
       "method": "MISPAR_HECHRACHI",
-      "terms": ["טוב", "חזו"],
-      "relation_type": "traditional_equivalence",
+      "terms": ["טוב"],
+      "relation_type": "traditional_reference",
       "source": "Baal HaTurim",
       "notes": "Tov (good) = 17. Yaakov lived 17 years in Eretz Yisrael and 17 years in Mitzrayim with Yosef."
     },
     {
-      "value": 304,
+      "value": 586,
       "method": "MISPAR_HECHRACHI",
       "terms": ["שופר"],
       "relation_type": "traditional_reference",
       "source": "Classical",
-      "notes": "Shofar = 586, but the word שפר (beauty/goodness) = 580."
+      "notes": "Shofar = 586. The shofar's blast awakens the soul to repentance."
     },
     {
       "value": 90,
@@ -267,10 +267,10 @@
     {
       "value": 9,
       "method": "MISPAR_KATAN",
-      "terms": ["אמת", "חסד"],
-      "relation_type": "kabbalistic_equivalence",
+      "terms": ["אמת"],
+      "relation_type": "kabbalistic_reference",
       "source": "Kabbalistic",
-      "notes": "Both Emet and Chesed reduce to 9 in Mispar Katan — the fullness of completion."
+      "notes": "Emet reduces to 9 in Mispar Katan (1+4+4) — the fullness of completion."
     },
     {
       "value": 21,
@@ -289,12 +289,12 @@
       "notes": "Adam = Mah = 45. The Shem Mah (יוד הא ואו הא) = 45, corresponding to the world of Tikkun."
     },
     {
-      "value": 546,
+      "value": 298,
       "method": "MISPAR_HECHRACHI",
       "terms": ["רחמים"],
       "relation_type": "foundational",
       "source": "Classical",
-      "notes": "Rachamim (mercy/compassion) = 546."
+      "notes": "Rachamim (mercy/compassion) = 298."
     },
     {
       "value": 39,
@@ -361,14 +361,6 @@
       "notes": "Kabbalah (reception/tradition) = 137."
     },
     {
-      "value": 463,
-      "method": "MISPAR_HECHRACHI",
-      "terms": ["נשמה"],
-      "relation_type": "foundational",
-      "source": "Kabbalistic",
-      "notes": "Neshamah (soul) = 395."
-    },
-    {
       "value": 395,
       "method": "MISPAR_HECHRACHI",
       "terms": ["נשמה", "השמן"],
@@ -377,12 +369,20 @@
       "notes": "Neshamah and HaShemen (the oil) both equal 395. Oil represents the soul's essence."
     },
     {
-      "value": 259,
+      "value": 214,
       "method": "MISPAR_HECHRACHI",
-      "terms": ["רוח", "נר"],
-      "relation_type": "traditional_equivalence",
+      "terms": ["רוח"],
+      "relation_type": "foundational",
+      "source": "Classical",
+      "notes": "Ruach (spirit/wind) = 214. The spirit of man is the candle of Hashem (Proverbs 20:27)."
+    },
+    {
+      "value": 250,
+      "method": "MISPAR_HECHRACHI",
+      "terms": ["נר"],
+      "relation_type": "foundational",
       "source": "Proverbs 20:27",
-      "notes": "The spirit of man is the candle of Hashem — Ruach and Ner are connected in meaning."
+      "notes": "Ner (candle) = 250. 'The soul of man is the candle of Hashem.'"
     },
     {
       "value": 186,

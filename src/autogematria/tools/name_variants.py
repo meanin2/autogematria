@@ -153,7 +153,6 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     # Surnames
     "cohen": ["כהן", "כהאן"],
     "katz": ["כץ"],
-    "levi": ["לוי"],
     "levy": ["לוי"],
     "mizrahi": ["מזרחי"],
     "peretz": ["פרץ"],
@@ -169,7 +168,6 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "abadi": ["עבאדי"],
     "abulafia": ["אבולעפיה"],
     "harari": ["הררי"],
-    "yosef": ["יוסף"],
 }
 
 _DIGRAPH_MAP = {

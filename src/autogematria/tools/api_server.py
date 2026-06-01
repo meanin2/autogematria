@@ -38,7 +38,7 @@ def _handle_full_report(body: dict[str, Any]) -> dict[str, Any]:
     from autogematria.search.gematria_reverse import build_name_gematria_graph
     from autogematria.tools.tool_functions import showcase_name as _showcase
 
-    query = body["query"]
+    query = _validate_query(body)
     clean = normalize_hebrew(query, FinalsPolicy.PRESERVE).replace(" ", "")
     timer = RunTimer(
         operation="full_report",
@@ -104,11 +104,23 @@ def _handle_run_stats(_body: dict[str, Any]) -> dict[str, Any]:
     return get_run_stats()
 
 
+def _clamp(value: Any, default: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, int(value if value is not None else default)))
+
+
+def _validate_query(body: dict[str, Any]) -> str:
+    query = body["query"]
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("'query' must be a non-empty string")
+    if len(query) > 500:
+        raise ValueError(f"'query' too long ({len(query)} chars, max 500)")
+    return query
+
+
 def _handle_submit_full_report(body: dict[str, Any]) -> dict[str, Any]:
     from autogematria import jobs
 
-    if "query" not in body or not str(body["query"]).strip():
-        raise ValueError("query is required")
+    _validate_query(body)
     job_id = jobs.create_job("full_report", {"query": body["query"]})
     job = jobs.get_job(job_id) or {}
     return {
@@ -125,28 +137,28 @@ def _build_routes() -> dict[str, dict[str, Any]]:
         },
         "/api/showcase-name": {
             "POST": lambda body: showcase_name(
-                body["query"],
+                _validate_query(body),
                 corpus_scope=body.get("corpus_scope", "torah"),
                 include_tanakh_expansion=_normalize_bool(
                     body.get("include_tanakh_expansion"),
                     default=True,
                 ),
                 methods=body.get("methods"),
-                max_variants=int(body.get("max_variants", 8)),
-                max_tasks=int(body.get("max_tasks", 40)),
-                max_results_per_task=int(body.get("max_results_per_task", 6)),
-                els_max_skip=int(body.get("els_max_skip", 60)),
+                max_variants=_clamp(body.get("max_variants"), 8, 1, 24),
+                max_tasks=_clamp(body.get("max_tasks"), 40, 1, 100),
+                max_results_per_task=_clamp(body.get("max_results_per_task"), 6, 1, 20),
+                els_max_skip=_clamp(body.get("els_max_skip"), 60, 1, 500),
                 gematria_methods=body.get("gematria_methods"),
-                max_gematria_span_words=int(body.get("max_gematria_span_words", 3)),
+                max_gematria_span_words=_clamp(body.get("max_gematria_span_words"), 3, 1, 10),
             ),
         },
         "/api/search-name": {
             "POST": lambda body: find_name_in_torah(
-                name=body["query"],
+                name=_validate_query(body),
                 methods=body.get("methods"),
                 book=body.get("book"),
-                max_results=int(body.get("max_results", 20)),
-                els_max_skip=int(body.get("els_max_skip", 500)),
+                max_results=_clamp(body.get("max_results"), 20, 1, 100),
+                els_max_skip=_clamp(body.get("els_max_skip"), 500, 1, 1000),
                 include_verification=_normalize_bool(
                     body.get("include_verification"),
                     default=True,
@@ -245,14 +257,21 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
             return auth[len("Bearer ") :] == expected
         return self.headers.get("X-API-Key") == expected
 
+    _MAX_BODY_BYTES = 65_536  # 64 KB
+
     def _read_json_body(self) -> dict[str, Any]:
         content_len = int(self.headers.get("Content-Length", "0"))
         if content_len <= 0:
             return {}
+        if content_len > self._MAX_BODY_BYTES:
+            raise ValueError(f"Request body too large ({content_len} bytes, max {self._MAX_BODY_BYTES})")
         raw = self.rfile.read(content_len)
         if not raw:
             return {}
-        return json.loads(raw.decode("utf-8"))
+        body = json.loads(raw.decode("utf-8"))
+        if not isinstance(body, dict):
+            raise ValueError("Request body must be a JSON object")
+        return body
 
     def _set_headers(self, content_type: str) -> None:
         self.send_header("Content-Type", content_type)

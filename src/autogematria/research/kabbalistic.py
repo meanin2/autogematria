@@ -196,6 +196,46 @@ LETTER_MEANINGS: dict[str, dict[str, Any]] = {
         "element": None,
         "note": "Last letter — the seal of truth (emet ends with Tav); completion of aleph-bet",
     },
+    "ך": {
+        "name": "Kaf Sofit",
+        "value": 500,
+        "meaning": "Palm, potential realized, the open hand at the end",
+        "sefirah": "Keter",
+        "element": None,
+        "note": "Final Kaf — potential brought to completion",
+    },
+    "ם": {
+        "name": "Mem Sofit",
+        "value": 600,
+        "meaning": "Water enclosed, concealed Torah, the womb sealed",
+        "sefirah": "Chesed",
+        "element": "Water",
+        "note": "Closed Mem — the concealed teachings; the sealed womb of creation",
+    },
+    "ן": {
+        "name": "Nun Sofit",
+        "value": 700,
+        "meaning": "Soul standing tall, faithfulness extended, the upright one",
+        "sefirah": "Gevurah",
+        "element": None,
+        "note": "Straight Nun — the soul that stands upright in the World to Come",
+    },
+    "ף": {
+        "name": "Peh Sofit",
+        "value": 800,
+        "meaning": "Mouth silenced, speech completed, the word fulfilled",
+        "sefirah": "Hod",
+        "element": None,
+        "note": "Final Peh — the mouth that has spoken its purpose",
+    },
+    "ץ": {
+        "name": "Tzadi Sofit",
+        "value": 900,
+        "meaning": "Righteousness manifest, the tzaddik revealed",
+        "sefirah": "Yesod",
+        "element": None,
+        "note": "Final Tzadi — the righteous one who stands straight before Hashem",
+    },
 }
 
 MILUI_SPELLINGS: dict[str, str] = {
@@ -221,12 +261,20 @@ MILUI_SPELLINGS: dict[str, str] = {
     "ר": "ריש",
     "ש": "שין",
     "ת": "תיו",
+    "ך": "כף",
+    "ם": "מם",
+    "ן": "נון",
+    "ף": "פא",
+    "ץ": "צדי",
 }
 
 ATBASH_MAP: dict[str, str] = {}
 _ALEPH_BET = "אבגדהוזחטיכלמנסעפצקרשת"
 for i, letter in enumerate(_ALEPH_BET):
     ATBASH_MAP[letter] = _ALEPH_BET[-(i + 1)]
+_FINAL_TO_MEDIAL = {"ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ"}
+for final, medial in _FINAL_TO_MEDIAL.items():
+    ATBASH_MAP[final] = ATBASH_MAP[medial]
 
 SEFIROT_ORDER = [
     "Keter", "Chochmah", "Binah", "Chesed", "Gevurah",
@@ -275,7 +323,7 @@ FOUR_WORLDS = {
 
 
 def _letters_of(text: str) -> list[str]:
-    norm = normalize_hebrew(text, FinalsPolicy.NORMALIZE)
+    norm = normalize_hebrew(text, FinalsPolicy.PRESERVE)
     return [ch for ch in norm if ch in LETTER_MEANINGS]
 
 
@@ -366,12 +414,7 @@ def sefirah_for_value(value: int) -> dict[str, Any]:
     while reduced > 10 and reduced != 0:
         reduced = sum(int(d) for d in str(reduced))
 
-    if reduced == 0:
-        idx = 0
-    elif reduced <= 10:
-        idx = reduced - 1
-    else:
-        idx = (reduced - 1) % 10
+    idx = 0 if reduced == 0 else reduced - 1
 
     sefirah = SEFIROT_ORDER[idx]
     return {

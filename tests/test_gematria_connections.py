@@ -1,8 +1,12 @@
 """Tests for gematria connection graph and source-backed links."""
 
-import pytest
+import json
 
-from autogematria.config import DB_PATH
+import pytest
+from hebrew import Hebrew
+from hebrew.gematria import GematriaTypes
+
+from autogematria.config import DB_PATH, PROJECT_ROOT
 from autogematria.gematria_connections import load_connections_library
 from autogematria.tools.tool_functions import gematria_connections, gematria_lookup
 
@@ -41,3 +45,50 @@ def test_source_pair_relation_for_ahava_echad():
     relations = set(target.get("relations") or [])
     assert "source_backed" in relations
     assert "source_pair" in relations
+
+
+_GEMATRIA_TYPE_MAP = {
+    "MISPAR_HECHRACHI": GematriaTypes.MISPAR_HECHRACHI,
+    "MISPAR_KATAN": GematriaTypes.MISPAR_KATAN,
+    "MISPAR_GADOL": GematriaTypes.MISPAR_GADOL,
+    "MISPAR_SIDURI": GematriaTypes.MISPAR_SIDURI,
+    "ATBASH": GematriaTypes.ATBASH,
+    "MISPAR_KOLEL": GematriaTypes.MISPAR_KOLEL,
+}
+
+
+class TestConnectionsDataIntegrity:
+    """Verify that every record in connections.json has correct gematria values."""
+
+    @pytest.fixture()
+    def connection_records(self):
+        path = PROJECT_ROOT / "data" / "gematria" / "connections.json"
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)["records"]
+
+    def test_all_terms_match_stated_value(self, connection_records):
+        errors = []
+        for i, record in enumerate(connection_records):
+            value = record["value"]
+            method_name = record["method"]
+            gtype = _GEMATRIA_TYPE_MAP.get(method_name)
+            if gtype is None:
+                continue
+            for term in record["terms"]:
+                computed = int(Hebrew(term).gematria(gtype))
+                if computed != value:
+                    errors.append(
+                        f"Record {i}: term '{term}' has {method_name}={computed}, "
+                        f"but record claims {value}"
+                    )
+        assert not errors, "Connections data errors:\n" + "\n".join(errors)
+
+    def test_no_duplicate_records(self, connection_records):
+        seen = set()
+        dupes = []
+        for i, record in enumerate(connection_records):
+            key = (record["value"], record["method"], tuple(sorted(record["terms"])))
+            if key in seen:
+                dupes.append(f"Record {i}: duplicate {key}")
+            seen.add(key)
+        assert not dupes, "Duplicate records:\n" + "\n".join(dupes)

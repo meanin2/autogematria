@@ -14,8 +14,8 @@ from autogematria.research.kabbalistic import (
 
 
 class TestLetterMeanings:
-    def test_all_22_letters_covered(self):
-        assert len(LETTER_MEANINGS) == 22
+    def test_all_27_letters_covered(self):
+        assert len(LETTER_MEANINGS) == 27  # 22 medial + 5 final forms
 
     def test_each_letter_has_required_fields(self):
         for letter, info in LETTER_MEANINGS.items():
@@ -33,8 +33,8 @@ class TestLetterMeanings:
 
 
 class TestMilui:
-    def test_all_22_letters_have_milui(self):
-        assert len(MILUI_SPELLINGS) == 22
+    def test_all_27_letters_have_milui(self):
+        assert len(MILUI_SPELLINGS) == 27  # 22 medial + 5 final forms
 
     def test_milui_aleph(self):
         result = compute_milui("א")
@@ -58,7 +58,10 @@ class TestMilui:
 
 class TestAtBash:
     def test_atbash_map_is_involution(self):
+        _FINALS = set("ךםןףץ")
         for letter, mapped in ATBASH_MAP.items():
+            if letter in _FINALS:
+                continue
             assert ATBASH_MAP[mapped] == letter, f"AtBash({letter})={mapped} but AtBash({mapped})={ATBASH_MAP[mapped]}"
 
     def test_atbash_aleph_is_tav(self):

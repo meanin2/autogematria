@@ -534,7 +534,11 @@ async function runSearch() {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{operation: 'full_report', query: q}})
     }});
-    if (!submit.ok) throw new Error('Submit failed: ' + submit.status);
+    if (!submit.ok) {{
+      let msg = 'Submit failed: ' + submit.status;
+      try {{ const errData = await submit.json(); if (errData.error) msg = errData.error; }} catch(_) {{}}
+      throw new Error(msg);
+    }}
     const sub = await submit.json();
     const jobId = sub.job_id;
 
@@ -580,6 +584,11 @@ async function runReverseLookup() {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{value: parseInt(val), method: method}})
     }});
+    if (!resp.ok) {{
+      let msg = 'Server error: ' + resp.status;
+      try {{ const errData = await resp.json(); if (errData.error) msg = errData.error; }} catch(_) {{}}
+      throw new Error(msg);
+    }}
     const data = await resp.json();
     results.innerHTML = renderReverseLookup(data, val, method);
   }} catch(e) {{

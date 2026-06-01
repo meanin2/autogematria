@@ -9,9 +9,11 @@ methods to make lookups even faster.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
-from functools import lru_cache
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from autogematria.config import DB_PATH
 
@@ -114,8 +116,8 @@ def word_gematria_profile(
         if gtype is not None:
             try:
                 values[method_name] = int(h.gematria(gtype))
-            except Exception:
-                pass
+            except (ValueError, TypeError, KeyError):
+                logger.debug("Gematria method %s failed for %r", method_name, clean)
     return {"word": word, "normalized": clean, "values": values}
 
 

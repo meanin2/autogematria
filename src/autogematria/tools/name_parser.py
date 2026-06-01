@@ -28,10 +28,6 @@ _AND_PATTERNS = re.compile(
     r"\b(v['\u2019]?|and|u|ve|v)\b", re.IGNORECASE
 )
 
-_HEB_BEN = re.compile(r"\bבן\b")
-_HEB_BAT = re.compile(r"\bבת\b")
-_HEB_AND = re.compile(r"\b[וו](?=\S)")
-
 _PATRONYMIC_MARKERS = {"ben", "bar", "ibn", "bat", "bas"}
 _CONNECTOR_WORDS = {"v", "ve", "and", "u", "v'"}
 
