@@ -1,6 +1,13 @@
 """Tests for the unified name report builder."""
 
+import pytest
+
+from autogematria.config import DB_PATH
 from autogematria.research.name_report import build_name_report
+
+pytestmark = pytest.mark.skipif(
+    not DB_PATH.is_file(), reason="prepared corpus database required"
+)
 
 
 class TestNameReport:

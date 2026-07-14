@@ -1,7 +1,14 @@
 """Tests for HTML report rendering."""
 
+import pytest
+
+from autogematria.config import DB_PATH
 from autogematria.research.html_report import render_full_report_html
 from autogematria.research.name_report import build_name_report
+
+pytestmark = pytest.mark.skipif(
+    not DB_PATH.is_file(), reason="prepared corpus database required"
+)
 
 
 class TestHtmlRendering:

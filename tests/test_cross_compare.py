@@ -1,11 +1,17 @@
 """Tests for cross-comparison engine."""
 
+import pytest
 
+from autogematria.config import DB_PATH
 from autogematria.research.cross_compare import (
     build_cross_comparison_report,
     compute_gematria_table,
     find_cross_matches,
     find_torah_word_matches,
+)
+
+requires_corpus = pytest.mark.skipif(
+    not DB_PATH.is_file(), reason="prepared corpus database required"
 )
 
 
@@ -61,6 +67,7 @@ class TestCrossMatches:
             assert all("interest_score" in m for m in matches)
 
 
+@requires_corpus
 class TestTorahWordMatches:
     def test_finds_words_for_common_value(self):
         matches = find_torah_word_matches([("משה", "first_name")])
@@ -80,6 +87,7 @@ class TestTorahWordMatches:
             assert normalize_hebrew(w["word"], FinalsPolicy.NORMALIZE) != self_norm
 
 
+@requires_corpus
 class TestFullReport:
     def test_report_structure(self):
         report = build_cross_comparison_report([

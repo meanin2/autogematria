@@ -3,10 +3,15 @@
 
 import pytest
 
+from autogematria.config import DB_PATH
 from autogematria.tools.api_server import (
     AutoGematriaHandler,
     _build_routes,
     _handle_search_name,
+)
+
+requires_corpus = pytest.mark.skipif(
+    not DB_PATH.is_file(), reason="prepared corpus database required"
 )
 
 
@@ -28,6 +33,7 @@ class TestRoutes:
         assert result == {"status": "ok"}
 
 
+@requires_corpus
 class TestReverseLookupHandler:
     def test_reverse_lookup_basic(self):
         routes = _build_routes()

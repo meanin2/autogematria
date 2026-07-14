@@ -1,6 +1,8 @@
 """Tests for the gematria reverse lookup module."""
 
+import pytest
 
+from autogematria.config import DB_PATH
 from autogematria.search.gematria_reverse import (
     REPORT_METHODS,
     REPORT_METHOD_DISPLAY,
@@ -10,7 +12,12 @@ from autogematria.search.gematria_reverse import (
     word_gematria_profile,
 )
 
+requires_corpus = pytest.mark.skipif(
+    not DB_PATH.is_file(), reason="prepared corpus database required"
+)
 
+
+@requires_corpus
 class TestReverseLookup:
     def test_finds_moshe(self):
         results = reverse_lookup(345, method="MISPAR_HECHRACHI", max_results=10)
@@ -37,6 +44,7 @@ class TestReverseLookup:
         assert results == []
 
 
+@requires_corpus
 class TestReverseLookupAllMethods:
     def test_returns_all_report_methods(self):
         results = reverse_lookup_all_methods(345)
@@ -65,6 +73,7 @@ class TestWordGematriaProfile:
         assert prof["values"] == {}
 
 
+@requires_corpus
 class TestBuildNameGraph:
     def test_basic_graph_structure(self):
         graph = build_name_gematria_graph([
