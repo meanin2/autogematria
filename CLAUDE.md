@@ -2,6 +2,13 @@
 
 Torah name-finding and gematria analysis engine. All computation is deterministic — no LLM calls are needed for the core pipeline.
 
+## Production Context
+
+This checkout is not the running service. Production is a manual Docker Compose deployment on
+this machine; commits and pushes do not deploy it. Read `docs/production.md` before any image,
+container, corpus, state-volume, Caddy, or `/home/ubuntu/server-setup-v2` work. Never restart or
+change the live deployment without explicit production authorization and a rollback image/backup.
+
 ## Quick Start
 
 ```bash

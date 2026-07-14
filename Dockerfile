@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir . \
     && groupadd --system autogematria \
     && useradd --system --gid autogematria --home-dir /app autogematria \
     && mkdir -p /data /var/lib/autogematria \
-    && chown -R autogematria:autogematria /app /var/lib/autogematria
+    && chown -R autogematria:autogematria /app /data /var/lib/autogematria
 
 USER autogematria
 

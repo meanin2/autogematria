@@ -184,6 +184,11 @@ multiple replicas; use an external queue before scaling horizontally.
 
 ## Container deployment
 
+The live experimental host uses a manual Docker Compose deployment; Git pushes do not deploy it.
+Read [docs/production.md](docs/production.md) before changing images, mounts, replicas, or anything
+under `/home/ubuntu/server-setup-v2`. The currently running April image and Compose layout are not
+drop-in compatible with the image built from current `main`.
+
 The image contains application code and packaged reference resources, not the 194 MB generated
 corpus. Prepare a persistent data volume first, then mount it read-only into the API container:
 
@@ -249,6 +254,8 @@ python -m pip wheel --no-deps . --wheel-dir dist
 ag-data-check --allow-legacy   # current checkout DB only; rebuilt DBs should omit this flag
 ```
 
-Tests that require the full corpus skip when no prepared database is present. CI always runs the
-unit contracts, lint, and wheel/resource packaging checks; a release should additionally run the
-full-corpus tests, performance smoke test, and container readiness check.
+Tests that require the full corpus skip when no prepared database is present. The committed
+GitHub Actions file is a reproducible validation recipe, but this production host has no CI/CD
+connection: release checks and deployment are manual. A release must run the unit contracts,
+lint, wheel/resource packaging checks, full-corpus tests, performance smoke test, and container
+readiness check before the operator changes the live Compose project.
