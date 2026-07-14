@@ -28,6 +28,7 @@ BIBLICAL_NAMESAKES_HEBREW: frozenset[str] = frozenset(
         "ישראל",
         "יוסף",
         "דוד",
+        "ישי",
         "שלמה",
         "אהרן",
         "אהרון",

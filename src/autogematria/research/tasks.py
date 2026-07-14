@@ -13,8 +13,18 @@ def build_research_tasks(query: str, config: ResearchConfig) -> tuple[list[Resea
     tasks: list[ResearchTask] = []
     task_num = 1
     for variant in variants:
+        # A full-name initials seed (for example, ``די`` for ``דבורה
+        # יעקב``) is meaningful only as a Roshei Tevot query. Treating it
+        # as a literal substring, ELS query, or gematria signature creates
+        # fast but misleading "full-name" findings.
+        text_methods = (
+            tuple(method for method in config.text_methods if method == "roshei_tevot")
+            if variant.kind == "initials"
+            else config.text_methods
+        )
+        gematria_methods = () if variant.kind == "initials" else config.gematria_methods
         for scope in config.corpus_scopes:
-            for method in config.text_methods:
+            for method in text_methods:
                 params: dict[str, object] = {
                     "max_results": config.max_text_results_per_task,
                 }
@@ -36,7 +46,7 @@ def build_research_tasks(query: str, config: ResearchConfig) -> tuple[list[Resea
                 if len(tasks) >= config.max_tasks:
                     return variants, tasks
 
-            for gematria_method in config.gematria_methods:
+            for gematria_method in gematria_methods:
                 tasks.append(
                     ResearchTask(
                         task_id=f"{task_num:04d}:gematria:signature:{scope}:{variant.text}",

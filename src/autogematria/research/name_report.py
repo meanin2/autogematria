@@ -18,7 +18,7 @@ from autogematria.research.kabbalistic import full_kabbalistic_analysis
 from autogematria.search.base import SearchResult
 from autogematria.search.corpus_index import MIDDLE_LETTER_POLICY
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
-from autogematria.tools.name_parser import parse_name
+from autogematria.tools.name_parser import ParsedName, parse_name
 from autogematria.tools.name_variants import contains_hebrew, generate_hebrew_variants
 
 
@@ -80,6 +80,29 @@ def _gematria_value(text: str) -> int:
     return int(Hebrew(clean).gematria(GematriaTypes.MISPAR_HECHRACHI))
 
 
+def _build_search_hebrew_name(
+    parsed: ParsedName,
+    hebrew_components: list[tuple[str, str]],
+) -> str:
+    """Restore relationship words for textual search, but not arithmetic.
+
+    Gematria totals intentionally combine only meaningful name components.
+    Text search needs the patronymic syntax, however: ``דוד בן ישי`` is a
+    plausible corpus phrase while the arithmetic form ``דוד ישי`` is not the
+    phrase a reader supplied.
+    """
+    parts: list[str] = []
+    for text, role in hebrew_components:
+        if role == "father_name" and parsed.patronymic_type:
+            connector = "בת" if parsed.patronymic_type in {"bat", "בת"} else "בן"
+            parts.append(connector)
+        if role == "mother_name":
+            parts.append(f"ו{text}")
+        else:
+            parts.append(text)
+    return " ".join(parts)
+
+
 def build_name_report(raw_input: str) -> dict[str, Any]:
     """Build a comprehensive name report from any input format.
 
@@ -105,6 +128,7 @@ def build_name_report(raw_input: str) -> dict[str, Any]:
         kabbalistic_per_component[key] = full_kabbalistic_analysis(heb_text)
 
     full_name_heb = " ".join(h for h, _ in hebrew_components)
+    search_name_heb = _build_search_hebrew_name(parsed, hebrew_components)
     kabbalistic_full = full_kabbalistic_analysis(full_name_heb)
 
     cross_comparison = build_cross_comparison_report(hebrew_components)
@@ -155,6 +179,7 @@ def build_name_report(raw_input: str) -> dict[str, Any]:
             for h, r in hebrew_components
         ],
         "full_hebrew_name": full_name_heb,
+        "search_hebrew_name": search_name_heb,
         "full_name_gematria": _gematria_value(full_name_heb),
         "kabbalistic_per_component": kabbalistic_per_component,
         "kabbalistic_full_name": kabbalistic_full,

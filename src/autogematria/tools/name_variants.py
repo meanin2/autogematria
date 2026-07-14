@@ -31,6 +31,7 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "caleb": ["כלב"],
     "chaim": ["חיים"],
     "haim": ["חיים"],
+    "dan": ["דן"],
     "daniel": ["דניאל"],
     "david": ["דוד"],
     "dovid": ["דוד"],
@@ -45,6 +46,7 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "enoch": ["חנוך"],
     "chanoch": ["חנוך"],
     "ezra": ["עזרא"],
+    "gad": ["גד"],
     "gavriel": ["גבריאל"],
     "gabriel": ["גבריאל"],
     "gershon": ["גרשון", "גרשם"],
@@ -74,6 +76,7 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "kalman": ["קלמן", "קלונימוס"],
     "levi": ["לוי"],
     "menachem": ["מנחם"],
+    "menashe": ["מנשה"],
     "mendel": ["מנדל"],
     "meir": ["מאיר"],
     "michael": ["מיכאל"],
@@ -91,6 +94,7 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "ovadia": ["עובדיה"],
     "obadiah": ["עובדיה"],
     "pinchas": ["פנחס"],
+    "rafael": ["רפאל"],
     "raphael": ["רפאל"],
     "refael": ["רפאל"],
     "reuven": ["ראובן"],
@@ -101,14 +105,21 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "shaul": ["שאול"],
     "shimon": ["שמעון"],
     "simon": ["שמעון"],
+    "shalom": ["שלום"],
     "shlomo": ["שלמה"],
     "solomon": ["שלמה"],
     "tzvi": ["צבי"],
     "zvi": ["צבי"],
     "yechezkel": ["יחזקאל"],
     "ezekiel": ["יחזקאל"],
+    "yirmiyahu": ["ירמיהו"],
+    "yishai": ["ישי"],
+    "jesse": ["ישי"],
+    "yissachar": ["יששכר"],
+    "yonah": ["יונה"],
     "yoel": ["יואל"],
     "zev": ["זאב"],
+    "zevulun": ["זבולון"],
     "zechariah": ["זכריה"],
     "zecharia": ["זכריה"],
     "zussman": ["זוסמן"],
@@ -119,6 +130,8 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "eve": ["חוה"],
     "devorah": ["דבורה"],
     "deborah": ["דבורה"],
+    "dvorah": ["דבורה"],
+    "dvora": ["דבורה"],
     "dinah": ["דינה"],
     "dina": ["דינה"],
     "esther": ["אסתר"],
@@ -140,16 +153,30 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "yehudit": ["יהודית"],
     "judith": ["יהודית"],
     # Modern / Yiddish / common names
+    "aliza": ["עליזה"],
     "alisa": ["אליסה", "אליזה", "עליזה"],
     "alyssa": ["אליסה", "אליזה"],
+    "avigail": ["אביגיל"],
     "batsheva": ["בתשבע"],
+    "bila": ["בילה"],
+    "bracha": ["ברכה"],
     "dorit": ["דורית"],
     "elisa": ["אליסה", "אליזה", "עליזה", "ליסה"],
+    "feiga": ["פייגא"],
+    "frida": ["פרידה"],
+    "golda": ["גולדה"],
+    "malka": ["מלכה"],
+    "nitzevet": ["נצבת"],
     "noa": ["נעה", "נועה"],
+    "ora": ["אורה"],
+    "penina": ["פנינה"],
     "shira": ["שירה"],
+    "shoshana": ["שושנה"],
+    "shulamit": ["שולמית"],
     "tehila": ["תהילה"],
     "tova": ["טובה"],
     "yocheved": ["יוכבד"],
+    "zelda": ["זלדה"],
     # Surnames
     "cohen": ["כהן", "כהאן"],
     "katz": ["כץ"],
@@ -168,6 +195,8 @@ _COMMON_VARIANTS: dict[str, list[str]] = {
     "abadi": ["עבאדי"],
     "abulafia": ["אבולעפיה"],
     "harari": ["הררי"],
+    # Common Hebrew titles used in structured names
+    "hamelech": ["המלך"],
 }
 
 _DIGRAPH_MAP = {
@@ -258,7 +287,7 @@ def generate_hebrew_variants(query: str, max_variants: int = 24) -> list[str]:
             continue
 
         key = _latin_key(word)
-        options = _COMMON_VARIANTS.get(key, [])
+        options = list(_COMMON_VARIANTS.get(key, ()))
         rough = _rough_transliterate(word)
         if rough:
             options.append(rough)

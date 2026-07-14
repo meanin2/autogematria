@@ -60,3 +60,21 @@ def test_els_backward_direction(els):
 def test_els_unknown_book_returns_empty(els):
     results = els.search_fast("משה", min_skip=1, max_skip=10, book="NotABook", max_results=5)
     assert results == []
+
+
+def test_long_unsupported_query_rejects_large_skip_before_location_lookup():
+    assert not ELSSearch._can_pass_long_query_skip_gate(
+        query_len=6,
+        has_exact_word_support=False,
+        skip=41,
+    )
+    assert ELSSearch._can_pass_long_query_skip_gate(
+        query_len=6,
+        has_exact_word_support=False,
+        skip=40,
+    )
+    assert ELSSearch._can_pass_long_query_skip_gate(
+        query_len=6,
+        has_exact_word_support=True,
+        skip=80,
+    )

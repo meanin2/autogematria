@@ -53,6 +53,10 @@ def run_research(query: str, config: ResearchConfig | None = None) -> ResearchRu
                 include_verification=True,
                 diversify_methods=False,
                 corpus_scope=task.corpus_scope,
+                # Token variants are explicit research tasks. Expanding a
+                # full-name task here duplicates that work and, worse, can
+                # relabel a token fallback as evidence for the full name.
+                expand_tokens=False,
             )
             rows = payload.get("results", [])
             total_results = payload.get("total_results", len(rows))

@@ -24,7 +24,7 @@ METHODS_FOR_REPORT: list[tuple[str, str]] = [
     ("MISPAR_KATAN", "Reduced (Mispar Katan)"),
     ("MISPAR_SIDURI", "Ordinal (Mispar Siduri)"),
     ("ATBASH", "AtBash"),
-    ("MISPAR_KOLEL", "Kolel (Standard + # letters)"),
+    ("MISPAR_KOLEL", "Kolel (Standard + 1)"),
 ]
 
 

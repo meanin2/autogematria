@@ -36,3 +36,28 @@ def test_run_research_smoke_uses_existing_search_primitives():
     assert any(f.family == "text" for f in run.findings)
     assert any(f.family == "gematria" for f in run.findings)
     assert run.findings[0].to_dict()["variant"]["text"]
+
+
+def test_runner_does_not_expand_full_name_tasks_into_token_fallbacks(monkeypatch):
+    calls = []
+
+    def fake_find_name_in_torah(name, **kwargs):
+        calls.append((name, kwargs))
+        return {"results": [], "total_results": 0}
+
+    monkeypatch.setattr(
+        "autogematria.tools.tool_functions.find_name_in_torah",
+        fake_find_name_in_torah,
+    )
+    cfg = ResearchConfig(
+        max_variants=1,
+        max_tasks=1,
+        text_methods=("substring",),
+        gematria_methods=(),
+        corpus_scopes=("torah",),
+    )
+
+    run_research("דבורה יעקב", cfg)
+
+    assert calls
+    assert calls[0][1]["expand_tokens"] is False

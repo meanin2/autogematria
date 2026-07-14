@@ -1,5 +1,6 @@
 """Tests for Latin->Hebrew query variant generation."""
 
+from autogematria.tools import name_parser, name_variants
 from autogematria.tools.name_variants import contains_hebrew, generate_hebrew_variants
 
 
@@ -45,3 +46,22 @@ def test_generate_removes_stopwords():
 def test_generate_max_variants_cap():
     variants = generate_hebrew_variants("a b c d e f g h i", max_variants=5)
     assert len(variants) <= 5
+
+
+def test_documented_family_names_use_conventional_spellings():
+    assert generate_hebrew_variants("yishai")[0] == "ישי"
+    assert generate_hebrew_variants("D'vorah")[0] == "דבורה"
+    assert generate_hebrew_variants("nitzevet")[0] == "נצבת"
+    assert generate_hebrew_variants("hamelech")[0] == "המלך"
+
+
+def test_every_gender_recognized_latin_name_has_a_curated_variant():
+    recognized = name_parser._MALE_NAMES_LATIN | name_parser._FEMALE_NAMES_LATIN
+    assert recognized <= name_variants._COMMON_VARIANTS.keys()
+
+
+def test_generation_does_not_mutate_curated_variant_lists():
+    before = tuple(name_variants._COMMON_VARIANTS["david"])
+    generate_hebrew_variants("david")
+    generate_hebrew_variants("david")
+    assert tuple(name_variants._COMMON_VARIANTS["david"]) == before

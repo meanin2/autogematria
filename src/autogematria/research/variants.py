@@ -10,6 +10,9 @@ from autogematria.research.schema import ResearchVariant, ResearchVariantSet
 from autogematria.tools.name_variants import contains_hebrew, generate_hebrew_variants
 
 
+_STRUCTURAL_NAME_TOKENS = {"בן", "בת"}
+
+
 def _dedupe_variants(items: list[ResearchVariant]) -> list[ResearchVariant]:
     seen: set[tuple[str, str, str, int | None]] = set()
     out: list[ResearchVariant] = []
@@ -107,15 +110,23 @@ def build_variants(query: str, config: ResearchConfig) -> dict[str, Any]:
             combined_variants.append(
                 ResearchVariant(
                     text=initials,
-                    kind="full_name",
+                    kind="initials",
                     source="full_name_initials",
                     token_count=len(tokens_for_combined),
                 )
             )
 
     token_variants: list[ResearchVariant] = []
-    tokens = [token for token in normalized.split() if token]
-    for idx, token in enumerate(tokens):
+    # Relationship words remain part of the full phrase but are not name
+    # variants in their own right. A direct hit for the ubiquitous word
+    # ``בן`` must never be presented as evidence for the person.
+    indexed_tokens = [
+        (idx, token)
+        for idx, token in enumerate(normalized.split())
+        if token and token not in _STRUCTURAL_NAME_TOKENS
+    ]
+    tokens = [token for _, token in indexed_tokens]
+    for idx, token in indexed_tokens:
         per_token = [
             ResearchVariant(
                 text=token,

@@ -248,6 +248,7 @@ def find_name_in_torah(
     include_verification: bool = True,
     diversify_methods: bool = True,
     corpus_scope: str = "torah",
+    expand_tokens: bool = True,
 ) -> dict[str, Any]:
     """Search for a Hebrew name with conservative evidence aggregation.
 
@@ -262,6 +263,9 @@ def find_name_in_torah(
         include_verification: Include deterministic verification payload per result
         diversify_methods: Apply round-robin for display-only results
         corpus_scope: "torah" (default) or "tanakh"
+        expand_tokens: Enrich multi-token searches with per-token fallback,
+            proximity, and surname-gematria evidence. Research orchestration
+            disables this because it schedules token variants separately.
 
     Returns:
         Dict with deterministic ranked evidence + final verdict.
@@ -287,7 +291,7 @@ def find_name_in_torah(
     proximity_results: list[dict[str, Any]] = []
     gematria_links: dict[str, Any] | None = None
 
-    if len(tokens) > 1:
+    if len(tokens) > 1 and expand_tokens:
         for token in tokens:
             token_result = _run_search_pipeline(
                 name=token,

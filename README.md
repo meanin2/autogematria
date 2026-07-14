@@ -32,8 +32,9 @@ searches, is visibly labeled experimental in reports, and is excluded from conse
 - About 194 MB for the prepared SQLite database
 - At least 450 MB free while rebuilding, because the old and new databases can coexist briefly
 
-A representative full-corpus search used about 38–40 MB peak RSS on the development machine;
-the complete report path used about 60 MB and finished in roughly 5 seconds. Actual memory and
+A representative full-corpus search used about 38–40 MB peak RSS on the development machine.
+Cold full reports used about 70–80 MB in the July 2026 manual matrix: roughly 5 seconds for a
+single biblical name and 10–15 seconds for representative multi-part names. Actual memory and
 runtime vary with query breadth and configured search limits.
 
 ## Local setup
@@ -258,4 +259,6 @@ Tests that require the full corpus skip when no prepared database is present. Th
 GitHub Actions file is a reproducible validation recipe, but this production host has no CI/CD
 connection: release checks and deployment are manual. A release must run the unit contracts,
 lint, wheel/resource packaging checks, full-corpus tests, performance smoke test, and container
-readiness check before the operator changes the live Compose project.
+readiness check before the operator changes the live Compose project. The known-answer arithmetic
+matrix, name/search contract, and latest manual results are recorded in
+[docs/name-verification.md](docs/name-verification.md).

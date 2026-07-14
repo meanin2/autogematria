@@ -5,6 +5,7 @@ import json
 import pytest
 
 from autogematria.config import DB_PATH
+from autogematria.research.presentation import build_showcase
 from autogematria.tools import cli_entrypoints
 from autogematria.tools.tool_functions import showcase_name
 
@@ -40,3 +41,32 @@ def test_show_name_cli_human_output_is_consumer_facing(monkeypatch, capsys):
     assert "Verdict: Direct textual hit" in out
     assert "Headline:" in out
     assert "For the full ledger" in out
+
+
+def test_component_hit_is_not_labeled_as_direct_full_name_hit():
+    row = {
+        "method": "SUBSTRING",
+        "family": "text",
+        "found_text": "כהן",
+        "location": {"book": "Leviticus", "chapter": 1, "verse": 5},
+        "variant": {
+            "text": "כהן",
+            "kind": "token",
+            "source": "token_exact",
+            "token_count": 1,
+        },
+        "verification": {"verified": True},
+        "confidence": {
+            "score": 0.9,
+            "features": {"match_type": "exact_word"},
+        },
+        "params": {"mode": "within_word"},
+    }
+
+    showcase = build_showcase(
+        {"query": "פלוני כהן", "findings_by_method": {"substring": [row]}}
+    )
+
+    assert showcase["verdict"] == "presentable_indirect_hit"
+    assert showcase["headline"] is None
+    assert showcase["supporting_findings"][0]["found_text"] == "כהן"

@@ -100,7 +100,12 @@ def _presentation_score(row: dict[str, Any], *, has_direct_exact: bool) -> float
     return round(score + bonus, 4)
 
 
-def _tier(row: dict[str, Any], *, has_direct_exact: bool) -> str | None:
+def _tier(
+    row: dict[str, Any],
+    *,
+    has_direct_exact: bool,
+    multi_token_query: bool,
+) -> str | None:
     method = str(row.get("method"))
     family = str(row.get("family") or "")
     match_type = str(_feature(row, "match_type", ""))
@@ -108,8 +113,16 @@ def _tier(row: dict[str, Any], *, has_direct_exact: bool) -> str | None:
 
     if not _verified(row):
         return None
-    if method == "SUBSTRING" and match_type in {"exact_word", "exact_phrase"}:
+    if (
+        method == "SUBSTRING"
+        and match_type in {"exact_word", "exact_phrase"}
+        and (not multi_token_query or _is_full_name_variant(row))
+    ):
         return "headline"
+    if method == "SUBSTRING" and match_type in {"exact_word", "exact_phrase"}:
+        # A component of a multi-part name appearing directly is useful
+        # support, but it is not a direct hit for the combined name.
+        return "supporting"
     if family == "gematria" and mode in {"exact_sequence", "token_sequence", "exact_word", "word_equivalence"}:
         return "supporting"
     if method in {"ROSHEI_TEVOT", "SOFEI_TEVOT"}:
@@ -163,6 +176,7 @@ def build_showcase(payload: dict[str, Any], *, limit_per_tier: int = 5) -> dict[
         and str(_feature(row, "match_type", "")) in {"exact_word", "exact_phrase"}
         and _verified(row)
         and not _is_namesake_only_hit(row, multi_token_query=multi_token_query)
+        and (not multi_token_query or _is_full_name_variant(row))
         for row in rows
     )
 
@@ -179,7 +193,11 @@ def build_showcase(payload: dict[str, Any], *, limit_per_tier: int = 5) -> dict[
                 enriched_ns["presentation_score"] = round(_confidence(row), 4)
                 namesake_rows.append(enriched_ns)
             continue
-        tier = _tier(row, has_direct_exact=has_direct_exact)
+        tier = _tier(
+            row,
+            has_direct_exact=has_direct_exact,
+            multi_token_query=multi_token_query,
+        )
         if not tier:
             continue
         enriched = dict(row)

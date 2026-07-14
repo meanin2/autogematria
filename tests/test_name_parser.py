@@ -109,6 +109,15 @@ class TestSearchableComponents:
         assert "yitzchak" in p.display_name
         assert "gindi" in p.display_name
 
+    def test_extra_names_keep_input_order_before_surname(self):
+        p = parse_name("Moshe Chaim Cohen")
+        assert p.searchable_components == [
+            ("Moshe", "first_name"),
+            ("Chaim", "extra"),
+            ("Cohen", "surname"),
+        ]
+        assert p.display_name == "Moshe Chaim Cohen"
+
 
 class TestGenderAwareParsing:
     def test_hebrew_mother_first(self):
@@ -144,6 +153,12 @@ class TestGenderAwareParsing:
         assert p.father_name == "shmendrik"
         assert p.mother_name == "ploni"
 
+    def test_documented_yishai_nitzevet_names_are_gender_aware(self):
+        p = parse_name("david ben nitzevet v yishai hamelech")
+        assert p.father_name == "yishai"
+        assert p.mother_name == "nitzevet"
+        assert p.surname == "hamelech"
+
 
 class TestEdgeCases:
     def test_bar_patronymic(self):
@@ -163,3 +178,11 @@ class TestEdgeCases:
         assert d["father_name"] == "yitzchak"
         assert d["surname"] == "gindi"
         assert "searchable_components" in d
+
+    def test_pointed_hebrew_maqaf_is_normalized_before_parsing(self):
+        raw = "מֹשֶׁה־בֶּן־עַמְרָם"
+        p = parse_name(raw)
+        assert p.raw_input == raw
+        assert p.first_name == "משה"
+        assert p.patronymic_type == "בן"
+        assert p.father_name == "עמרם"

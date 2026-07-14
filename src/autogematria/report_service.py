@@ -30,7 +30,9 @@ def build_full_report_payload(query: str) -> dict[str, Any]:
         components = [(c["text"], c["role"]) for c in report.get("hebrew_components", [])]
         timer.component_count = len(components)
 
-        showcase_raw = showcase_name(report["full_hebrew_name"])
+        showcase_raw = showcase_name(
+            report.get("search_hebrew_name") or report["full_hebrew_name"]
+        )
         prepared = prepare_showcase_payload(showcase_raw)
         showcase = prepared.get("showcase", {})
         graph = build_name_gematria_graph(components) if components else {}

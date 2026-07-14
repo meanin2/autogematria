@@ -12,9 +12,10 @@ Handles patterns like:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
+from autogematria.normalize import FinalsPolicy, normalize_hebrew
 from autogematria.tools.name_variants import contains_hebrew
 
 
@@ -37,7 +38,7 @@ _FEMALE_NAMES_HEBREW = {
     "בתשבע", "חוה", "יהודית", "אביגיל", "ברכה", "שושנה", "גולדה",
     "פרידה", "זלדה", "בילה", "פייגא", "טובה", "שירה", "נועה", "נעה",
     "אליסה", "דורית", "עליזה", "תהילה", "אורה", "שולמית", "ציפורה",
-    "פנינה", "בת ציון", "מלכה",
+    "פנינה", "בת ציון", "מלכה", "נצבת",
 }
 _FEMALE_NAMES_LATIN = {
     "miriam", "sarah", "sara", "rachel", "leah", "lea", "rivka", "rebecca",
@@ -47,6 +48,7 @@ _FEMALE_NAMES_LATIN = {
     "bracha", "shoshana", "golda", "frida", "zelda", "bila", "feiga",
     "tova", "shira", "noa", "alisa", "alyssa", "dorit", "aliza",
     "tehila", "ora", "shulamit", "tzipora", "penina", "malka",
+    "dvorah", "dvora", "nitzevet",
 }
 _MALE_NAMES_HEBREW = {
     "אברהם", "יצחק", "יעקב", "משה", "אהרן", "אהרון", "דוד", "שלמה",
@@ -55,7 +57,7 @@ _MALE_NAMES_HEBREW = {
     "שמואל", "אליהו", "ישעיהו", "ירמיהו", "יחזקאל", "עקיבא", "מאיר",
     "חיים", "ברוך", "צבי", "אריה", "זאב", "עזריאל", "דניאל",
     "נתנאל", "רפאל", "גבריאל", "מיכאל", "עובדיה", "יונה", "שאול",
-    "אלעזר", "נחמן", "שלום", "מרדכי", "נח",
+    "אלעזר", "נחמן", "שלום", "מרדכי", "נח", "ישי",
 }
 _MALE_NAMES_LATIN = {
     "abraham", "avraham", "yitzchak", "isaac", "yaakov", "jacob", "moshe",
@@ -68,7 +70,7 @@ _MALE_NAMES_LATIN = {
     "meir", "chaim", "haim", "baruch", "tzvi", "zvi", "aryeh", "ari",
     "zev", "azriel", "daniel", "netanel", "rafael", "gavriel", "michael",
     "ovadia", "yonah", "saul", "shaul", "elazar", "nachman", "shalom",
-    "mordechai", "noach", "noah",
+    "mordechai", "noach", "noah", "yishai", "jesse",
 }
 
 
@@ -129,6 +131,7 @@ class ParsedName:
         if self.mother_name:
             conj = "ו" if contains_hebrew(self.first_name) else "v'"
             parts.append(conj + self.mother_name)
+        parts.extend(self.extra_names)
         if self.surname:
             parts.append(self.surname)
         return " ".join(parts)
@@ -141,10 +144,10 @@ class ParsedName:
             parts.append((self.father_name, "father_name"))
         if self.mother_name:
             parts.append((self.mother_name, "mother_name"))
-        if self.surname:
-            parts.append((self.surname, "surname"))
         for name in self.extra_names:
             parts.append((name, "extra"))
+        if self.surname:
+            parts.append((self.surname, "surname"))
         return parts
 
     @property
@@ -195,11 +198,18 @@ def parse_name(raw: str) -> ParsedName:
     if not raw:
         return ParsedName(raw_input=raw, first_name="")
 
-    if _has_latin_patronymic(raw):
-        return _parse_english_name(raw)
-    if contains_hebrew(raw):
-        return _parse_hebrew_name(raw)
-    return _parse_english_name(raw)
+    structural = (
+        normalize_hebrew(raw, FinalsPolicy.PRESERVE)
+        if contains_hebrew(raw)
+        else raw
+    )
+    if _has_latin_patronymic(structural):
+        parsed = _parse_english_name(structural)
+    elif contains_hebrew(structural):
+        parsed = _parse_hebrew_name(structural)
+    else:
+        parsed = _parse_english_name(structural)
+    return replace(parsed, raw_input=raw)
 
 
 def _parse_hebrew_name(raw: str) -> ParsedName:

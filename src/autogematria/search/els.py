@@ -96,6 +96,16 @@ class ELSSearch(SearchMethod):
             and loc_start.verse == loc_end.verse
         )
 
+    @staticmethod
+    def _can_pass_long_query_skip_gate(
+        *,
+        query_len: int,
+        has_exact_word_support: bool,
+        skip: int,
+    ) -> bool:
+        """Reject location-independent long-query failures before SQL lookup."""
+        return query_len < 6 or has_exact_word_support or abs(skip) <= 40
+
     def search(
         self,
         query: str,
@@ -152,6 +162,12 @@ class ELSSearch(SearchMethod):
         for skip in skips_to_check:
             if len(results) >= max_results:
                 break
+            if not self._can_pass_long_query_skip_gate(
+                query_len=len(query_norm),
+                has_exact_word_support=has_exact_word_support,
+                skip=skip,
+            ):
+                continue
             abs_skip = abs(skip)
             # For a query of length N at skip S, the span is (N-1)*S letters
             span = (len(query_norm) - 1) * abs_skip
@@ -268,6 +284,12 @@ class ELSSearch(SearchMethod):
         for skip in range(min_skip, max_skip + 1):
             if len(results) >= max_results:
                 break
+            if not self._can_pass_long_query_skip_gate(
+                query_len=len(query_norm),
+                has_exact_word_support=has_exact_word_support,
+                skip=skip,
+            ):
+                continue
             span = (len(query_norm) - 1) * skip
             if span >= text_len:
                 break  # larger skips won't fit either

@@ -3,6 +3,8 @@
 ## Start here
 
 - Read `docs/production.md` before any Docker, deployment, data-path, or host work.
+- Read `docs/name-verification.md` before changing name parsing, transliteration, gematria totals,
+  research provenance, or full-name verdict rules.
 - The checkout at `/home/ubuntu/gematria` is source code, not the live process.
 - Production is an experimental but user-facing service on this machine. A commit or push does
   not build, deploy, restart, or otherwise change it.

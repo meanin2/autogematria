@@ -409,7 +409,7 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
           <option value="MISPAR_KATAN" title="Mispar Katan — reduced form. Each letter value is reduced to a single digit (e.g. 200 → 2, 400 → 4).">Reduced</option>
           <option value="MISPAR_SIDURI" title="Mispar Siduri — ordinal position in the alphabet (א=1, ב=2, … ת=22).">Ordinal</option>
           <option value="ATBASH" title="AtBash — each letter swaps with its mirror (א↔ת, ב↔ש …), then the standard values are summed. A classical cipher hinted at in Jeremiah.">AtBash</option>
-          <option value="MISPAR_KOLEL" title="Mispar Kolel — Standard value plus the number of letters in the word. Used when a count-of-letters (one for the whole) is considered meaningful.">Kolel</option>
+          <option value="MISPAR_KOLEL" title="Mispar Kolel — Standard value plus one for the word as a whole.">Kolel</option>
         </select>
         <button onclick="runReverseLookup()"
           title="Run the reverse lookup and show matching Tanakh words.">Search</button>
@@ -422,7 +422,7 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
           <div><strong>Reduced (Mispar Katan):</strong> each letter reduced to a single digit (e.g. 200 → 2, 400 → 4).</div>
           <div><strong>Ordinal (Mispar Siduri):</strong> position in the alphabet, א=1 … ת=22.</div>
           <div><strong>AtBash:</strong> each letter swapped with its mirror (א↔ת, ב↔ש …), then the Standard values are summed.</div>
-          <div><strong>Kolel:</strong> Standard value plus the number of letters in the word.</div>
+          <div><strong>Kolel:</strong> Standard value plus one for the word as a whole.</div>
         </div>
       </details>
       <div id="reverse-loading" class="loading hidden"><div class="spinner"></div></div>
@@ -559,7 +559,7 @@ const TORAH_FACTS = [
   "Four worlds of Kabbalah: Atzilut, Beriah, Yetzirah, Asiyah — the acronym אבי&quot;ע. <em>(Zohar; Eitz Chaim, Sha'ar ABYA)</em>",
   "The ten sefirot: Keter, Chochmah, Binah, Chesed, Gevurah, Tiferet, Netzach, Hod, Yesod, Malchut. <em>(Sefer Yetzirah 1:4; Pardes Rimonim)</em>",
   "אהיה (Ex 3:14) = 21. Its milui אלף הי יוד הי = 161 — the form called קס&quot;א. <em>(Pardes Rimonim 21)</em>",
-  "Kolel adds +1 (or the letter count) to a total — treating the word itself as &ldquo;one.&rdquo; <em>(Pardes Rimonim, Sha'ar HaGematriaot)</em>",
+  "Kolel adds +1 to a total — treating the word itself as &ldquo;one.&rdquo; <em>(Pardes Rimonim, Sha'ar HaGematriaot)</em>",
   "פרד&quot;ס — Peshat, Remez, Drash, Sod — the four levels of Torah interpretation. <em>(Zohar III 202a)</em>",
   "קול (voice) = 136 = ממון (money). Baal HaTurim: the voice of Torah must weigh against the pull of possessions. <em>(Baal HaTurim, Gen 27:22)</em>",
   "The shofar's three sounds — tekiah, shevarim, teruah — combine into 100 blasts on Rosh Hashanah. <em>(Rosh Hashanah 33b; Tur OC 590)</em>",

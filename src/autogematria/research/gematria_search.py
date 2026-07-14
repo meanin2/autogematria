@@ -104,24 +104,33 @@ def _load_word_span(
     start_index: int,
     end_index: int,
 ) -> list[dict[str, Any]]:
-    """Resolve metadata only for a span that has already matched compact values."""
+    """Resolve metadata only for a span that has already matched compact values.
+
+    The caller already searched the cached method-value array. Joining the
+    894k-row ``word_gematria`` table again for every match made multi-token
+    reports spend several seconds per result span. Resolve the handful of
+    words by their indexed absolute positions and attach the cached values.
+    """
     conn = connect_corpus(db_path)
     try:
         rows = conn.execute(
             "SELECT w.absolute_word_index, w.word_raw, w.word_normalized, "
-            "wg.value, b.api_name, c.chapter_num, v.verse_num "
+            "b.api_name, c.chapter_num, v.verse_num "
             "FROM words w "
-            "JOIN word_forms wf ON w.word_normalized = wf.form_text "
-            "JOIN word_gematria wg ON wf.form_id = wg.form_id "
-            "JOIN gematria_methods gm ON wg.method_id = gm.method_id "
             "JOIN verses v ON w.verse_id = v.verse_id "
             "JOIN chapters c ON v.chapter_id = c.chapter_id "
             "JOIN books b ON c.book_id = b.book_id "
-            "WHERE gm.method_name = ? AND w.absolute_word_index BETWEEN ? AND ? "
+            "WHERE w.absolute_word_index BETWEEN ? AND ? "
             "ORDER BY w.absolute_word_index",
-            (method_name, start_index, end_index),
+            (start_index, end_index),
         ).fetchall()
-        return [dict(row) for row in rows]
+        method_values = _load_method_values(db_path, method_name)
+        resolved: list[dict[str, Any]] = []
+        for row in rows:
+            item = dict(row)
+            item["value"] = int(method_values[int(item["absolute_word_index"])])
+            resolved.append(item)
+        return resolved
     finally:
         conn.close()
 
