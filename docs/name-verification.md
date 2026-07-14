@@ -124,7 +124,8 @@ filesystem. It passed:
 - synchronous `david ben yishai` full report (`334`, complete-phrase headline at II Samuel 23:1);
 - queued `משה` report from `queued` through `done` (`345`).
 
-The disposable container was then removed. The candidate tag is not a deployment.
+The disposable container and temporary candidate image tag were then removed. Neither was a
+deployment.
 
 ## Production status at verification time
 
