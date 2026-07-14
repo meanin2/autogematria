@@ -7,7 +7,6 @@ dependencies = [
     "httpx>=0.27",
     "networkx>=3.2",
     "tqdm>=4.66",
-    "scipy>=1.12",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +31,8 @@ ag-serve-api = "autogematria.tools.api_server:main"
 ag-name-report = "autogematria.tools.report_builder:main"
 ag-full-report = "autogematria.tools.full_report_cli:main"
 ag-index-report-methods = "autogematria.gematria_report_index:main"
+ag-prepare-data = "autogematria.prepare_data:prepare_main"
+ag-data-check = "autogematria.prepare_data:check_main"
 
 [build-system]
 requires = ["setuptools>=68.0"]
@@ -39,6 +40,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+autogematria = [
+    "resources/gematria/*.json",
+    "resources/ground_truth/*.jsonl",
+]
 
 [tool.ruff]
 line-length = 100

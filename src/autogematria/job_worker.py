@@ -1,7 +1,7 @@
 """Background job worker thread.
 
-Each replica spawns one worker on startup. Worker polls jobs.db for queued jobs,
-claims one atomically, runs the matching handler, writes the result.
+The API process spawns one worker on startup. It polls jobs.db for queued jobs,
+claims one atomically, runs the matching handler, and writes the result.
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ CLEANUP_INTERVAL_SECONDS = 600.0
 
 
 def _run_full_report(payload: dict[str, Any]) -> dict[str, Any]:
-    from autogematria.tools.api_server import _handle_full_report
+    from autogematria.report_service import build_full_report_payload
 
-    return _handle_full_report(payload)
+    return build_full_report_payload(payload["query"])
 
 
 _HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
@@ -69,8 +69,9 @@ def start_worker() -> None:
     with _started_lock:
         if _started:
             return
+        jobs.init_db()
+        jobs.recover_stale_jobs(stale_after_seconds=0)
         _started = True
-    jobs.init_db()
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
     t = threading.Thread(target=_worker_loop, args=(worker_id,), name="ag-job-worker", daemon=True)
     t.start()

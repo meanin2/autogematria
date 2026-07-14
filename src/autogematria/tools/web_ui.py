@@ -4,6 +4,8 @@ Serves a single-page application that calls the JSON API endpoints.
 No LLM dependency — all computation is done server-side in Python.
 """
 
+# ruff: noqa: F541 -- doubled braces intentionally render literal CSS/JavaScript.
+
 from __future__ import annotations
 
 
@@ -106,6 +108,17 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
 .progress-text {{
   display:flex; justify-content:space-between; margin-top:6px;
   font-size:11px; color:rgba(255,248,234,0.55);
+}}
+.progress-fact {{
+  margin-top:10px; padding:12px 14px; border-radius:12px;
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+  font-size:13px; line-height:1.55; color:rgba(255,248,234,0.78);
+  font-style:italic; min-height:42px;
+  transition:opacity 0.5s ease;
+}}
+.progress-fact.fading {{ opacity:0; }}
+.progress-fact::before {{
+  content:"✦ "; color:var(--gold); font-style:normal; margin-right:4px;
 }}
 
 /* Cards */
@@ -358,7 +371,7 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
         <input class="search-input" id="name-input" type="text"
           placeholder="Enter a name..." dir="auto" autofocus>
         <button class="search-btn" id="search-btn" onclick="runSearch()"
-          title="Parse the name, compute gematria across six classical methods, search the Torah for direct, ELS, acrostic, and gematria-equivalent appearances, and compile a kabbalistic analysis. Takes about 60–120 seconds.">Analyze Name</button>
+          title="Parse the name, compute gematria across six classical methods, search the Torah for direct, ELS, acrostic, and gematria-equivalent appearances, and compile a kabbalistic analysis.">Analyze Name</button>
       </div>
       <div class="example-names">
         <span class="example-chip" onclick="setExample('דוד בן ישי')">דוד בן ישי</span>
@@ -371,6 +384,7 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
           <span id="progress-label">Analyzing...</span>
           <span id="progress-eta"></span>
         </div>
+        <div class="progress-fact" id="progress-fact"></div>
       </div>
     </div>
     <div id="search-error" class="error hidden"></div>
@@ -433,10 +447,23 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
       <div class="card-title">System Requirements</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">CPU</div><div class="stat-val">Any</div><div class="stat-sub">No GPU needed</div></div>
-        <div class="stat-card"><div class="stat-label">Memory</div><div class="stat-val">~52 MB</div><div class="stat-sub">Peak RSS during search</div></div>
-        <div class="stat-card"><div class="stat-label">Storage</div><div class="stat-val">~50 MB</div><div class="stat-sub">SQLite database</div></div>
+        <div class="stat-card"><div class="stat-label">Memory</div><div class="stat-val">~40 MB</div><div class="stat-sub">Typical search peak RSS</div></div>
+        <div class="stat-card"><div class="stat-label">Storage</div><div class="stat-val">~194 MB</div><div class="stat-sub">Prepared SQLite corpus</div></div>
         <div class="stat-card"><div class="stat-label">Python</div><div class="stat-val">3.11+</div><div class="stat-sub">No LLM required</div></div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-title">API Access</div>
+      <p style="font-size:13px;color:var(--slate);margin-bottom:10px;">
+        If this deployment requires an API token, save it in this browser. It stays in local storage
+        for this origin and is sent only in the <code>Authorization</code> header.
+      </p>
+      <div class="reverse-input">
+        <input type="password" id="api-token" autocomplete="off" placeholder="Optional API token">
+        <button onclick="saveApiToken()">Save token</button>
+        <button onclick="clearApiToken()">Clear</button>
+      </div>
+      <div id="api-token-status" style="font-size:11px;color:var(--slate);margin-top:8px;"></div>
     </div>
     <div class="card">
       <div class="card-title">Corpus</div>
@@ -458,7 +485,192 @@ nav button.active {{ background:white; color:var(--ink); box-shadow:0 2px 8px rg
 
 <script>
 const API = "";
+const API_TOKEN_KEY = 'autogematria_api_token';
 let progressInterval = null;
+let factInterval = null;
+
+function apiFetch(path, options = {{}}) {{
+  const headers = new Headers(options.headers || {{}});
+  const token = localStorage.getItem(API_TOKEN_KEY);
+  if (token) headers.set('Authorization', 'Bearer ' + token);
+  return fetch(API + path, {{...options, headers}});
+}}
+
+function updateTokenStatus() {{
+  const status = document.getElementById('api-token-status');
+  if (!status) return;
+  status.textContent = localStorage.getItem(API_TOKEN_KEY)
+    ? 'A token is saved in this browser.'
+    : 'No API token is saved.';
+}}
+
+function saveApiToken() {{
+  const input = document.getElementById('api-token');
+  const token = input.value.trim();
+  if (token) localStorage.setItem(API_TOKEN_KEY, token);
+  else localStorage.removeItem(API_TOKEN_KEY);
+  input.value = '';
+  updateTokenStatus();
+}}
+
+function clearApiToken() {{
+  localStorage.removeItem(API_TOKEN_KEY);
+  document.getElementById('api-token').value = '';
+  updateTokenStatus();
+}}
+
+const TORAH_FACTS = [
+  "The Masoretic Torah contains 304,805 letters — a scribe must confirm every one before a sefer Torah is kosher. <em>(Kiddushin 30a; Minchat Shai)</em>",
+  "The middle letter of the Torah is the vav of גחון in Leviticus 11:42 — written large in every scroll. <em>(Kiddushin 30a)</em>",
+  "בראשית (&ldquo;In the beginning&rdquo;) has a gematria of 913. Baal HaTurim rearranges it as ברית אש, a covenant of fire. <em>(Baal HaTurim, Gen 1:1)</em>",
+  "אחד (one) = 13 and אהבה (love) = 13 — two roads to the same unity. <em>(Zohar Bereishit; Rambam, Yesodei HaTorah 2:2)</em>",
+  "יהוה = 26 — the four-letter Name is the numerical signature of the Torah. <em>(Pardes Rimonim 19)</em>",
+  "אלהים = 86 = הטבע (&ldquo;the nature&rdquo;). The Baal Shem Tov taught that God is hidden in the laws of nature. <em>(Tzava'at HaRivash; Nefesh HaChaim 3:11)</em>",
+  "חי (life) = 18 — why Jews give tzedakah and gifts in multiples of 18. <em>(widespread minhag; cf. Rema OC 694)</em>",
+  "Hebrew has 22 letters — Sefer Yetzirah calls them the 22 foundation letters of creation. <em>(Sefer Yetzirah 1:1)</em>",
+  "Five final letters — ך ם ן ף ץ — spell מנצפך. Chazal: the prophets reinstituted them. <em>(Shabbat 104a; Megillah 2b)</em>",
+  "Mispar Katan reduces every letter to a single digit: ת=400 → 4, ק=100 → 1. <em>(Pardes Rimonim, Sha'ar HaGematriaot)</em>",
+  "AtBash swaps א↔ת, ב↔ש, ג↔ר… Jeremiah uses it: ששך = בבל. <em>(Jer. 25:26, 51:41; Rashi)</em>",
+  "Mispar Gadol gives the final letters extended values — ך=500, ם=600, ן=700, ף=800, ץ=900. <em>(Pardes Rimonim 30)</em>",
+  "Masoretic count: 5,845 verses, 79,976 words, 304,805 letters. <em>(Minchat Shai; Masoretic notes)</em>",
+  "Parashat Vayechi has no break from the parasha before it — the &ldquo;sealed&rdquo; parasha, hinting that Jacob's death sealed Israel's eyes to the end. <em>(Rashi Gen 47:28; Bereishit Rabbah 96:1)</em>",
+  "613 mitzvot: the gematria of תורה is 611, plus the two commandments Israel heard directly at Sinai. <em>(Makkot 23b–24a)</em>",
+  "משה = 345 = אל שדי. The two share a gematria throughout classical Kabbalah. <em>(Zohar; Ramak)</em>",
+  "שלום (peace) = 376 = עשו (Esau) — Jacob made peace even with his adversary. <em>(Baal HaTurim, Gen 32:4)</em>",
+  "In biblical Hebrew, letters are the numerals — the same symbols serve for both. <em>(Mishnah Shekalim 3:2; Rashi Gen 14:14)</em>",
+  "Mispar Siduri is ordinal: א=1, ב=2, … ת=22. <em>(Pardes Rimonim, Sha'ar HaGematriaot)</em>",
+  "נחש (serpent) = 358 = משיח (messiah). The Arizal: Mashiach rectifies the primordial serpent. <em>(Sha'ar HaPesukim, Bereishit)</em>",
+  "אמת (truth) uses the first, middle, and last letters of the alphabet — truth spans everything. <em>(Shabbat 55a; Yerushalmi Sanhedrin 1:1)</em>",
+  "שקר (falsehood) uses three adjacent letters — falsehood has no foundation. <em>(Shabbat 104a)</em>",
+  "The Tetragrammaton יהוה occurs 6,828 times in the Tanakh. <em>(Masoretic enumeration)</em>",
+  "Genesis 1:1 has exactly 7 words and 28 letters — both multiples of 7, the number of completion. <em>(Bereishit Rabbah 1:1; Rabbeinu Bachya)</em>",
+  "טוב (good) = 17. It first appears in Gen 1:4: &ldquo;God saw the light, that it was good.&rdquo; <em>(Baal HaTurim)</em>",
+  "Shirat HaYam (Exodus 15) is written in a brick pattern — &ldquo;half over half.&rdquo; <em>(Megillah 16b; Rambam Hil. Sefer Torah 8:4)</em>",
+  "Psalm 119 is an eightfold acrostic — 8 verses per letter × 22 letters = 176, the Tanakh's longest chapter. <em>(Psalms 119)</em>",
+  "Five Megillot are read on five occasions: Shir HaShirim, Ruth, Eichah, Kohelet, Esther. <em>(Mishnah Megillah; Tur OC 490)</em>",
+  "כתר (crown) = 620 — the 613 Torah mitzvot plus 7 rabbinic commandments. <em>(Rabbeinu Bachya, Ex 25:11)</em>",
+  "Milui spells out each letter's name, then sums it: אלף = 111, בית = 412, גמל = 73. <em>(Pardes Rimonim, Sha'ar HaGematriaot)</em>",
+  "Yod (י) is the smallest letter and equals 10; its milui יוד = 20. <em>(Menachot 29b)</em>",
+  "רחם (womb) and רחמים (mercy) share one root — divine mercy is &ldquo;womb-love.&rdquo; <em>(Ibn Ezra, Ex 34:6)</em>",
+  "Tefillin contain four parshiyot: Kadesh, Vehaya Ki Yeviacha, Shema, Vehaya Im Shamoa. <em>(Menachot 34a; Rambam Hil. Tefillin 1:1)</em>",
+  "The Torah begins with ב and ends with ל — their last-and-first letters spell לב, heart. Israel's task is a Torah of the heart. <em>(Baal HaTurim, Deut 34:12)</em>",
+  "אברהם = 248 — matching the 248 positive commandments and the 248 limbs of the body. <em>(Nedarim 32b; Baal HaTurim)</em>",
+  "שרה = 505; אברהם = 248; together 753. <em>(Baal HaTurim, Gen 17:15)</em>",
+  "Four worlds of Kabbalah: Atzilut, Beriah, Yetzirah, Asiyah — the acronym אבי&quot;ע. <em>(Zohar; Eitz Chaim, Sha'ar ABYA)</em>",
+  "The ten sefirot: Keter, Chochmah, Binah, Chesed, Gevurah, Tiferet, Netzach, Hod, Yesod, Malchut. <em>(Sefer Yetzirah 1:4; Pardes Rimonim)</em>",
+  "אהיה (Ex 3:14) = 21. Its milui אלף הי יוד הי = 161 — the form called קס&quot;א. <em>(Pardes Rimonim 21)</em>",
+  "Kolel adds +1 (or the letter count) to a total — treating the word itself as &ldquo;one.&rdquo; <em>(Pardes Rimonim, Sha'ar HaGematriaot)</em>",
+  "פרד&quot;ס — Peshat, Remez, Drash, Sod — the four levels of Torah interpretation. <em>(Zohar III 202a)</em>",
+  "קול (voice) = 136 = ממון (money). Baal HaTurim: the voice of Torah must weigh against the pull of possessions. <em>(Baal HaTurim, Gen 27:22)</em>",
+  "The shofar's three sounds — tekiah, shevarim, teruah — combine into 100 blasts on Rosh Hashanah. <em>(Rosh Hashanah 33b; Tur OC 590)</em>",
+  "A single wrong letter pasuls the entire Torah scroll. <em>(Menachot 29a; Rambam Hil. Sefer Torah 10:1)</em>",
+  "Shema Yisrael has 6 words and 25 letters. The six words enthrone God over the six directions of space. <em>(Zohar II 160b; Rokeach)</em>",
+  "&ldquo;Olam&rdquo; (עולם) means both &ldquo;world&rdquo; and &ldquo;hidden&rdquo; — the physical world conceals the divine. <em>(Baal Shem Tov, Keter Shem Tov)</em>",
+  "The Vilna Shas of Bavli runs 2,711 daf across 37 tractates. <em>(Vilna edition)</em>",
+  "אדם = 45 — the same as מ&quot;ה, the milui of יהוה spelled יוד הא ואו הא. <em>(Eitz Chaim, Sha'ar MaH u-BaN)</em>",
+  "70 names for God, 70 names for Israel, 70 names for Jerusalem, 70 nations — one structural count. <em>(Bamidbar Rabbah 14:12)</em>",
+  "The אחד of the Shema is written with an oversized ד so it won't be misread as אחר. <em>(Berachot 13b; Tur OC 61)</em>",
+  "A scribe may not write even one Torah letter from memory — each must be copied. <em>(Megillah 18b; Rambam Hil. Sefer Torah 1:12)</em>",
+  "לב (heart) = 32 = the 32 paths of wisdom in Sefer Yetzirah. <em>(Sefer Yetzirah 1:1)</em>",
+  "יעקב (Jacob) = 182 = 7 × 26 — seven times the Tetragrammaton. <em>(Baal HaTurim, Gen 25:26)</em>",
+  "The Torah has 54 parshiyot in the annual cycle. <em>(Tur OC 428; Magen Avraham)</em>",
+  "אנכי, the first word of the Decalogue, has a gematria of 81. Chazal note it is also an Egyptian word for &ldquo;I.&rdquo; <em>(Shabbat 105a)</em>",
+  "The menorah had 7 branches — 7 is the number of natural completion. <em>(Ex 25:31–37; Ramban)</em>",
+  "שבת (Shabbat) = 702. <em>(Baal HaTurim, Ex 20:8)</em>",
+  "22 letters + 10 sefirot = the 32 paths of wisdom of Sefer Yetzirah. <em>(Sefer Yetzirah 1:1)</em>",
+  "רות = 606. Adding the 7 mitzvos of Bnei Noach she already observed gives 613 — the full Torah she accepted. <em>(Vilna Gaon, cited in many chumashim)</em>",
+  "התורה (&ldquo;the Torah&rdquo;) = 616 — 613 mitzvot plus the 3 patriarchs. <em>(Baal HaTurim)</em>",
+  "The Ten Commandments contain 620 letters — the same as כתר, crown. <em>(Rabbeinu Bachya, Ex 20)</em>",
+  "The first word of the Torah, בראשית, is read by Chazal as ב-ראשית — &ldquo;for the sake of Torah and Israel, each called reishit.&rdquo; <em>(Rashi Gen 1:1; Bereishit Rabbah 1:4)</em>",
+  "קשת (rainbow) = 800. <em>(Baal HaTurim, Gen 9:13)</em>",
+  "גבורה (strength) = 216 = the 216 letters of the Seventy-Two-Letter Name. <em>(Zohar; Pardes Rimonim 21)</em>",
+  "The 72 Names of God are derived from Exodus 14:19–21 — three consecutive verses of exactly 72 letters each. <em>(Zohar Beshalach; cited in Pardes Rimonim)</em>",
+  "אור (light) = 207 = רז (secret) — light and hidden secret share a gematria. <em>(Baal HaTurim)</em>",
+  "אליהו (Elijah) = 52 = בן (son) — Elijah announces the redemption through the son of David. <em>(Baal HaTurim)</em>",
+  "שמים (heavens) = 390 — the Arizal teaches this as the measure of the sky's lights. <em>(Eitz Chaim)</em>",
+  "ארץ (earth) = 291. <em>(Pardes Rimonim)</em>",
+  "לחם (bread) = 78 = 3 × 26 — three Tetragrammatons, one reason Shabbat challah is doubled. <em>(Pri Etz Chaim, Sha'ar HaShabbat)</em>",
+  "יין (wine) = 70 = סוד (secret) — &ldquo;nichnas yayin, yatza sod,&rdquo; when wine enters, secrets come out. <em>(Eruvin 65a; Sanhedrin 38a)</em>",
+  "תפלה (prayer) = 515, equal to ואתחנן — the root of Moshe's 515 prayers to enter the Land. <em>(Devarim Rabbah 11:10; Baal HaTurim)</em>",
+  "אמן (amen) = 91 = יהוה (26) + אדני (65) — saying amen unites the two divine names. <em>(Zohar; Tur OC 124)</em>",
+  "אדני = 65 = היכל (palace) — Adnut is the palace that houses Havayah. <em>(Pardes Rimonim)</em>",
+  "יצחק (Isaac) = 208 = 8 × 26. <em>(Baal HaTurim)</em>",
+  "אסתר (Esther) = 661. Her Hebrew name הדסה = 74. <em>(Megillah 13a; Baal HaTurim)</em>",
+  "Amidah has 18 berachot — corresponding to the 18 vertebrae of the spine and to חי. <em>(Berachot 28b; Tur OC 112)</em>",
+  "נר (candle) = 250. <em>(Baal HaTurim)</em>",
+  "כהן (priest) = 75 = לילה (night). <em>(Baal HaTurim)</em>",
+  "The four species of Sukkot — lulav, etrog, hadas, arava — correspond to the four letters of יהוה. <em>(Zohar III 24b)</em>",
+  "The Menorah's 7 lamps correspond to the 7 lower sefirot from Chesed to Malchut. <em>(Zohar; Ramchal, Adir BaMarom)</em>",
+  "דעת (knowledge) = 474 — the hidden sefirah linking Chochmah and Binah. <em>(Eitz Chaim, Sha'ar Arich Anpin)</em>",
+  "Moshe's shortest prayer was אל נא רפא נא לה — 5 words, 11 letters, for his sister Miriam. <em>(Num 12:13; Rashi)</em>",
+  "Moshe lived 120 years — the upper limit set in Genesis 6:3. <em>(Deut 34:7)</em>",
+  "קבלה = 137. <em>(Pardes Rimonim, Sha'ar HaGematriaot)</em>",
+  "שמע (&ldquo;hear&rdquo;) = 410 — the number of years the First Temple stood. <em>(Yoma 9a; Rabbeinu Bachya)</em>",
+  "ספר (book) = 340 = שם (name) — a book is the extension of its author's name. <em>(Baal HaTurim)</em>",
+  "דרך (way) = 224. <em>(Baal HaTurim)</em>",
+  "עץ חיים (tree of life) = 228. <em>(Pardes Rimonim)</em>",
+  "The 10 utterances of creation (&ldquo;God said&rdquo; in Genesis 1) correspond to the 10 sefirot. <em>(Avot 5:1; Zohar)</em>",
+  "Shabbat candles should be two — hinting at זכור and שמור, the two versions of the fourth commandment. <em>(Shabbat 33b; Tur OC 263)</em>",
+  "מלכות (kingship) = 496 — the sefirah that receives from all the rest. <em>(Pardes Rimonim 23)</em>",
+  "יסוד (foundation) = 80 — the sefirah through which all upper light flows to the world. <em>(Zohar)</em>",
+  "Chazal say Abraham was the first to experience old age — &ldquo;And Abraham was zaken&rdquo; (Gen 24:1) is the Torah's first mention of aging. <em>(Sanhedrin 107b; Bereishit Rabbah 65:9)</em>",
+  "יהוה milui AV (ע&quot;ב) = יוד הי ויו הי = 72 — the source of the 72-Letter Name. <em>(Pardes Rimonim; Eitz Chaim)</em>",
+  "יהוה milui SaG (ס&quot;ג) = יוד הי ואו הי = 63. <em>(Eitz Chaim)</em>",
+  "יהוה milui MaH (מ&quot;ה) = יוד הא ואו הא = 45 = אדם. <em>(Eitz Chaim, Sha'ar MaH u-BaN)</em>",
+  "יהוה milui BaN (ב&quot;ן) = יוד הה וו הה = 52 = בן (son). <em>(Eitz Chaim)</em>",
+  "The four miluyim — 72, 63, 45, 52 — correspond to the four worlds: Atzilut, Beriah, Yetzirah, Asiyah. <em>(Eitz Chaim, Sha'ar ABYA)</em>",
+  "On Yom Kippur the Kohen Gadol pronounced the Shem HaMeforash — the only time outside daily Temple service it was uttered aloud. <em>(Yoma 39b; Mishnah Yoma 6:2)</em>",
+  "The shofar is a ram's horn, recalling the ram caught by its horns at the akeidah. <em>(Rosh Hashanah 16a; Gen 22:13)</em>",
+  "ירושלים is written defective in the Tanakh but read with a yod — two Jerusalems, earthly and heavenly. <em>(Taanit 5a)</em>",
+  "Bezalel, builder of the Mishkan, &ldquo;knew how to permute the letters with which heaven and earth were created.&rdquo; <em>(Berachot 55a)</em>",
+  "ישראל (541) rearranges to לי ראש — &ldquo;the head is Mine.&rdquo; <em>(Zohar I 248b)</em>",
+  "אור (light) appears exactly 5 times in the Genesis creation account — hinting at the five books of Torah, itself called &ldquo;light.&rdquo; <em>(Bereishit Rabbah 3:5; Prov 6:23)</em>",
+  "שמש (sun) = 640, and ירח (moon) = 218 — together the two great luminaries of Genesis 1:16. <em>(classical gematria)</em>",
+  "The Torah's first verse begins with ב and its last verse ends with ל — together the &ldquo;heart&rdquo; that frames the whole. <em>(Baal HaTurim, Deut 34:12)</em>",
+  "The gematria of צדיק (righteous) = 204 — and the Zohar links this to the 204 limbs animated by the tzaddik's spark. <em>(Zohar)</em>",
+  "שבע (seven) = 372, and the seventh day is Shabbat — completing creation's cycle. <em>(Gen 2:2–3)</em>",
+  "The Priestly Blessing (Num 6:24–26) has 3 verses of 3, 5, and 7 words — an ascending structure. <em>(Sotah 38a; Rashi)</em>",
+"Mezuzah contains two parshiyot: Shema and Vehaya Im Shamoa — totaling 22 lines, matching the 22 letters of the alphabet. <em>(Menachot 31b; Rambam Hil. Mezuzah 5:1)</em>",
+  "The Ark of the Covenant held both the whole tablets and the broken ones — a lesson: an elder who forgets Torah through no fault is still honored. <em>(Berachot 8b; Menachot 99a)</em>",
+  "The word מקדש (sanctuary) = 444. <em>(classical gematria)</em>",
+  "Ten generations from Adam to Noah, ten from Noah to Abraham — the patient unfolding of divine patience. <em>(Avot 5:2)</em>",
+  "The word ברכה (blessing) = 227 — the same as זכר (remembrance). <em>(classical gematria)</em>",
+  "The Hallel has 6 psalms (113–118) — recited on festivals and Rosh Chodesh. <em>(Pesachim 117a; Tur OC 422)</em>",
+  "חכמה (wisdom) = 73 — matching גמל in milui, and linked in Pardes Rimonim to the upper light that &ldquo;ripens&rdquo; from Keter. <em>(Pardes Rimonim 23)</em>",
+  "גאולה (redemption) = 45 = אדם. <em>(classical gematria; Arizal)</em>",
+  "Every Shemoneh Esrei ends with &ldquo;oseh shalom&rdquo; — and the Zohar: peace is the vessel that holds every blessing. <em>(Zohar III 176a; Uktzin 3:12)</em>",
+  "The word שמחה (joy) = 353, equal to משה (345) + ח (8) — the joy of Moshe on completing the 8-day dedication. <em>(classical gematria)</em>",
+  "Chazal: heaven was formed of fire and water mixed. מים = 90, אש = 301, and שמים = 390 — fire and water combined with kolel. <em>(Chagigah 12a; Rashi ad loc.)</em>",
+  "The Song of Songs has 117 verses — the Zohar calls it &ldquo;the holy of holies&rdquo; of all songs. <em>(Mishnah Yadayim 3:5; Zohar II 143a)</em>",
+  "The word אמן (amen) is an acronym for א-ל מ-לך נ-אמן — &ldquo;God, trustworthy King.&rdquo; <em>(Shabbat 119b; Tur OC 124)</em>",
+  "The gematria of התשובה (teshuvah) links to Elul: the acronym אני לדודי ודודי לי. <em>(Shir HaShirim 6:3; Abudraham)</em>",
+];
+
+function pickFact(exclude) {{
+  let idx = Math.floor(Math.random() * TORAH_FACTS.length);
+  if (TORAH_FACTS.length > 1 && idx === exclude) idx = (idx + 1) % TORAH_FACTS.length;
+  return idx;
+}}
+
+function startFactRotation() {{
+  const el = document.getElementById('progress-fact');
+  if (!el) return;
+  let current = pickFact(-1);
+  el.innerHTML = TORAH_FACTS[current];
+  el.classList.remove('fading');
+  factInterval = setInterval(() => {{
+    el.classList.add('fading');
+    setTimeout(() => {{
+      current = pickFact(current);
+      el.innerHTML = TORAH_FACTS[current];
+      el.classList.remove('fading');
+    }}, 500);
+  }}, 5500);
+}}
+
+function stopFactRotation() {{
+  if (factInterval) {{ clearInterval(factInterval); factInterval = null; }}
+}}
 
 function showView(name, btn) {{
   document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.add('hidden'));
@@ -474,6 +686,7 @@ function setExample(text) {{
 }}
 
 document.getElementById('name-input').value = '';
+updateTokenStatus();
 document.getElementById('name-input').addEventListener('keydown', e => {{
   if (e.key === 'Enter') runSearch();
 }});
@@ -485,6 +698,7 @@ function startProgress(estSeconds) {{
   const eta = document.getElementById('progress-eta');
   bar.classList.add('active');
   fill.style.width = '0%';
+  startFactRotation();
 
   const steps = ['Parsing name...', 'Computing gematria...', 'Kabbalistic analysis...', 'Searching Torah...', 'Building graph...', 'Finalizing...'];
   let stepIdx = 0;
@@ -504,6 +718,7 @@ function startProgress(estSeconds) {{
 
 function stopProgress() {{
   if (progressInterval) {{ clearInterval(progressInterval); progressInterval = null; }}
+  stopFactRotation();
   const fill = document.getElementById('progress-fill');
   fill.style.width = '100%';
   setTimeout(() => {{ document.getElementById('progress-bar').classList.remove('active'); }}, 600);
@@ -517,20 +732,20 @@ async function runSearch() {{
   const errDiv = document.getElementById('search-error');
   btn.disabled = true; results.classList.add('hidden'); errDiv.classList.add('hidden');
 
-  let estSec = 90;
+  let estSec = 15;
   try {{
-    const estResp = await fetch(API + '/api/estimate', {{
+    const estResp = await apiFetch('/api/estimate', {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{query: q, operation: 'full_report'}})
     }});
-    if (estResp.ok) {{ const ed = await estResp.json(); estSec = Math.max(60, ed.estimated_seconds || 90); }}
+    if (estResp.ok) {{ const ed = await estResp.json(); estSec = Math.max(3, ed.estimated_seconds || 15); }}
   }} catch(e) {{}}
 
   startProgress(estSec);
   const label = document.getElementById('progress-label');
 
   try {{
-    const submit = await fetch(API + '/api/jobs', {{
+    const submit = await apiFetch('/api/jobs', {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{operation: 'full_report', query: q}})
     }});
@@ -545,7 +760,7 @@ async function runSearch() {{
     let job;
     while (true) {{
       await new Promise(r => setTimeout(r, 1500));
-      const pr = await fetch(API + '/api/jobs/' + jobId);
+      const pr = await apiFetch('/api/jobs/' + jobId);
       if (!pr.ok) throw new Error('Poll failed: ' + pr.status);
       job = await pr.json();
       if (job.status === 'queued') {{
@@ -580,7 +795,7 @@ async function runReverseLookup() {{
   const results = document.getElementById('reverse-results');
   loading.classList.remove('hidden');
   try {{
-    const resp = await fetch(API + '/api/reverse-lookup', {{
+    const resp = await apiFetch('/api/reverse-lookup', {{
       method: 'POST', headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{value: parseInt(val), method: method}})
     }});
@@ -600,7 +815,7 @@ async function runReverseLookup() {{
 
 async function loadRunStats() {{
   try {{
-    const resp = await fetch(API + '/api/run-stats');
+    const resp = await apiFetch('/api/run-stats');
     if (!resp.ok) return;
     const data = await resp.json();
     if (data.total_runs > 0) {{
@@ -817,6 +1032,8 @@ function renderReport(d) {{
     html += '</div>';
   }}
 
+  html += renderAcrosticMatches(r);
+
   const graph = d.graph || {{}};
   const gnodes = graph.nodes || [];
   if (gnodes.length > 1) {{
@@ -839,6 +1056,103 @@ function renderReport(d) {{
   }}
 
   return html || '<div class="card"><p style="color:var(--slate);">No results found.</p></div>';
+}}
+
+const ACROSTIC_ROLE_LABELS = {{
+  first_name: 'First name', father_name: "Father's name", mother_name: "Mother's name",
+  surname: 'Surname', extra: 'Additional', combined_all: 'Full combined',
+  'first_name+surname': 'First + surname', father_patronymic: 'Father',
+  mother_patronymic: 'Mother', patronymic: 'Patronymic',
+}};
+function humanizeAcrosticRole(role) {{
+  return ACROSTIC_ROLE_LABELS[role] || role.replace(/_/g,' ').replace(/\\b./g,c=>c.toUpperCase());
+}}
+
+const ACROSTIC_TYPE_LABELS = {{
+  roshei_tevot: 'Roshei Tevot (first letters)',
+  sofei_tevot: 'Sofei Tevot (last letters)',
+  emtzaei_tevot: 'Experimental Emtzaei Tevot (middle letters)',
+}};
+
+function renderAcrosticMatches(d) {{
+  const tsm = d.text_search_matches;
+  if (!tsm) return '';
+
+  const totals = tsm.totals || {{}};
+  const byComp = tsm.by_component || {{}};
+  const fullName = tsm.full_name || {{}};
+
+  const grandTotal = (totals.roshei_tevot||0) + (totals.sofei_tevot||0) + (totals.emtzaei_tevot||0);
+  if (grandTotal === 0) return '';
+
+  let html = '<div class="card"><div class="card-title">Acrostic appearances in Tanakh</div>';
+
+  // Totals summary pills
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">';
+  html += '<span class="pill" style="background:rgba(184,135,47,0.12);border:1px solid rgba(184,135,47,0.28);color:var(--ink);font-weight:600;">Roshei Tevot: ' + (totals.roshei_tevot||0) + '</span>';
+  html += '<span class="pill" style="background:rgba(45,90,123,0.10);border:1px solid rgba(45,90,123,0.22);color:var(--ink);font-weight:600;">Sofei Tevot: ' + (totals.sofei_tevot||0) + '</span>';
+  html += '<span class="pill" style="background:rgba(49,84,65,0.10);border:1px solid rgba(49,84,65,0.22);color:var(--ink);font-weight:600;">Middle Letters: ' + (totals.emtzaei_tevot||0) + '</span>';
+  html += '</div>';
+  html += '<p style="font-size:11px;color:var(--slate);margin:-6px 0 18px;">Middle-letter matches use only the unique interior center of odd-length words (3+ letters). They are experimental and never affect the verdict.</p>';
+
+  ['roshei_tevot','sofei_tevot','emtzaei_tevot'].forEach(type => {{
+    const typeTotal = (totals[type]||0);
+    const typeLabel = ACROSTIC_TYPE_LABELS[type] || type;
+
+    html += '<div style="margin-bottom:20px;">';
+    html += '<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--slate);margin:0 0 10px;">' + esc(typeLabel) + '</h3>';
+
+    if (typeTotal === 0) {{
+      html += '<div style="font-size:12px;color:var(--slate);opacity:0.6;font-style:italic;padding-left:4px;">No ' + esc(typeLabel) + ' matches</div>';
+      html += '</div>';
+      return;
+    }}
+
+    // Build groups: full_name first, then each by_component key
+    const groups = [];
+    const fnMatches = (fullName[type]||[]);
+    if (fnMatches.length) groups.push({{label:'Full name', matches: fnMatches}});
+    Object.entries(byComp).forEach(([key, compData]) => {{
+      const matches = (compData[type]||[]);
+      if (!matches.length) return;
+      const parts = key.split('|');
+      const heb = parts[0] || key;
+      const role = parts[1] || '';
+      const label = esc(heb) + (role ? ' <span style="font-size:10px;color:var(--gold);text-transform:uppercase;letter-spacing:0.07em;">(' + esc(humanizeAcrosticRole(role)) + ')</span>' : '');
+      groups.push({{label, matches}});
+    }});
+
+    groups.forEach(g => {{
+      html += '<div style="margin-bottom:12px;">';
+      html += '<div style="font-size:11px;font-weight:700;color:var(--slate);margin-bottom:6px;direction:rtl;text-align:right;">' + g.label + '</div>';
+      g.matches.slice(0,5).forEach(m => {{
+        const ref = esc((m.book||'')) + ' ' + (m.chapter||'') + ':' + (m.verse||'');
+        const span = m.word_span || 0;
+        html += '<div class="match-card" style="margin-bottom:6px;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px;">';
+        html += '<span style="font-size:12px;font-weight:700;color:var(--accent);">' + ref + '</span>';
+        html += '<span class="pill" style="background:rgba(49,84,65,0.07);border-color:rgba(49,84,65,0.18);color:var(--forest);font-size:9px;">spans ' + span + ' word' + (span!==1?'s':'') + '</span>';
+        html += '</div>';
+        if (m.found_text) {{
+          html += '<div style="direction:rtl;font-family:David,\\'Times New Roman\\',serif;font-size:18px;color:var(--gold);margin-bottom:4px;">' + esc(m.found_text) + '</div>';
+        }}
+        if (m.context) {{
+          html += '<div style="direction:rtl;font-family:David,\\'Times New Roman\\',serif;font-size:14px;color:var(--ink);line-height:1.6;" dir="rtl">' + esc(m.context) + '</div>';
+        }}
+        html += '</div>';
+      }});
+      const extra = g.matches.length - 5;
+      if (extra > 0) {{
+        html += '<div style="font-size:11px;color:var(--slate);opacity:0.7;padding-left:4px;">+ ' + extra + ' more match' + (extra!==1?'es':'') + '</div>';
+      }}
+      html += '</div>';
+    }});
+
+    html += '</div>';
+  }});
+
+  html += '</div>';
+  return html;
 }}
 
 function buildReportMarkdown(d) {{

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import sqlite3
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -13,11 +12,12 @@ import networkx as nx
 from hebrew import Hebrew
 from hebrew.gematria import GematriaTypes
 
-from autogematria.config import DATA_DIR, DB_PATH
+from autogematria.config import DB_PATH, RESOURCE_DIR
 from autogematria.normalize import FinalsPolicy, normalize_hebrew
+from autogematria.runtime_data import connect_corpus
 
 
-CONNECTIONS_LIBRARY_PATH = DATA_DIR / "gematria" / "connections.json"
+CONNECTIONS_LIBRARY_PATH = RESOURCE_DIR / "gematria" / "connections.json"
 
 DEFAULT_GEMATRIA_SCORE_PARAMS: dict[str, float] = {
     "base_score": 0.26,
@@ -126,8 +126,7 @@ def gematria_connections(
         if str(rec.get("method", "")) == resolved_method and int(rec.get("value", -1)) == value
     ]
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
+    conn = connect_corpus(db_path)
     try:
         rows = conn.execute(
             "SELECT wf.form_raw, wf.frequency FROM word_gematria wg "

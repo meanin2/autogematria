@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
 
+from autogematria.config import TANAKH_BOOKS, normalize_corpus_scope
+from autogematria.gematria_index import ALL_METHODS
+from autogematria.report_service import build_full_report_payload
+from autogematria.runtime_data import readiness_payload
 from autogematria.tools.agent_site import (
     build_agent_html,
     build_agent_manifest,
@@ -18,6 +23,16 @@ from autogematria.tools.tool_functions import find_name_in_torah, showcase_name
 
 
 DEFAULT_PORT = 8080
+SEARCH_METHODS = {
+    "substring",
+    "roshei_tevot",
+    "sofei_tevot",
+    "emtzaei_tevot",
+    "els",
+}
+RESEARCH_METHODS = SEARCH_METHODS | {"gematria"}
+GEMATRIA_METHODS = {method.name for method in ALL_METHODS}
+BOOK_NAMES = {book[0] for book in TANAKH_BOOKS}
 
 
 def _normalize_bool(value: Any, *, default: bool) -> bool:
@@ -31,52 +46,20 @@ def _normalize_bool(value: Any, *, default: bool) -> bool:
 
 
 def _handle_full_report(body: dict[str, Any]) -> dict[str, Any]:
-    from autogematria.normalize import FinalsPolicy, normalize_hebrew
-    from autogematria.research.html_export import prepare_showcase_payload
-    from autogematria.research.name_report import build_name_report
-    from autogematria.run_logger import RunTimer
-    from autogematria.search.gematria_reverse import build_name_gematria_graph
-    from autogematria.tools.tool_functions import showcase_name as _showcase
-
-    query = _validate_query(body)
-    clean = normalize_hebrew(query, FinalsPolicy.PRESERVE).replace(" ", "")
-    timer = RunTimer(
-        operation="full_report",
-        input_text=query,
-        letter_count=len(clean),
-        word_count=len(query.split()),
-    )
-
-    with timer:
-        report = build_name_report(query)
-        components = [(c["text"], c["role"]) for c in report.get("hebrew_components", [])]
-        timer.component_count = len(components)
-
-        showcase_raw = _showcase(report["full_hebrew_name"])
-        prepared = prepare_showcase_payload(showcase_raw)
-        showcase = prepared.get("showcase", {})
-
-        graph = build_name_gematria_graph(components) if components else {}
-        timer.set_result_metadata(
-            verdict=showcase.get("verdict_label", ""),
-            cross_matches=report.get("cross_comparison", {}).get("summary", {}).get("total_cross_matches", 0),
-        )
-
-    return {
-        "report": report,
-        "showcase": showcase,
-        "graph": graph,
-        "timing": {"elapsed_seconds": round(timer.elapsed_seconds, 2)},
-    }
+    return build_full_report_payload(_validate_query(body))
 
 
 def _handle_reverse_lookup(body: dict[str, Any]) -> dict[str, Any]:
     from autogematria.run_logger import RunTimer
     from autogematria.search.gematria_reverse import reverse_lookup
 
-    value = int(body["value"])
+    value = _bounded_int(body.get("value"), name="value", default=None, lo=0, hi=10_000_000)
     method = body.get("method", "MISPAR_HECHRACHI")
-    max_results = int(body.get("max_results", 50))
+    if not isinstance(method, str) or method not in GEMATRIA_METHODS:
+        raise ValueError(f"'method' must be one of {sorted(GEMATRIA_METHODS)}")
+    max_results = _bounded_int(
+        body.get("max_results"), name="max_results", default=50, lo=1, hi=500
+    )
 
     with RunTimer(operation="reverse_lookup", input_text=str(value)):
         words = reverse_lookup(value, method=method, max_results=max_results)
@@ -88,9 +71,11 @@ def _handle_estimate(body: dict[str, Any]) -> dict[str, Any]:
     from autogematria.normalize import FinalsPolicy, normalize_hebrew
     from autogematria.run_logger import estimate_seconds
 
-    query = body.get("query", "")
+    query = _validate_query(body)
     operation = body.get("operation", "full_report")
-    clean = normalize_hebrew(query, FinalsPolicy.PRESERVE).replace(" ", "") if query else ""
+    if operation not in {"full_report", "name_report", "reverse_lookup", "showcase", "search"}:
+        raise ValueError("Unknown operation")
+    clean = normalize_hebrew(query, FinalsPolicy.PRESERVE).replace(" ", "")
     est = estimate_seconds(
         operation,
         letter_count=len(clean),
@@ -104,14 +89,77 @@ def _handle_run_stats(_body: dict[str, Any]) -> dict[str, Any]:
     return get_run_stats()
 
 
-def _clamp(value: Any, default: int, lo: int, hi: int) -> int:
-    return max(lo, min(hi, int(value if value is not None else default)))
+def _bounded_int(
+    value: Any,
+    *,
+    name: str,
+    default: int | None,
+    lo: int,
+    hi: int,
+) -> int:
+    if value is None:
+        if default is None:
+            raise ValueError(f"Missing required field: {name}")
+        value = default
+    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+        raise ValueError(f"'{name}' must be an integer between {lo} and {hi}")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"'{name}' must be an integer between {lo} and {hi}") from exc
+    if parsed < lo or parsed > hi:
+        raise ValueError(f"'{name}' must be between {lo} and {hi}")
+    return parsed
+
+
+def _validate_methods(value: Any, *, allowed: set[str], field: str) -> list[str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"'{field}' must be a JSON list of method names")
+    if not value:
+        raise ValueError(f"'{field}' must contain at least one method")
+    methods = [item.strip().lower() for item in value]
+    unknown = sorted(set(methods) - allowed)
+    if unknown:
+        raise ValueError(f"Unknown {field}: {', '.join(unknown)}")
+    return methods
+
+
+def _validate_gematria_methods(value: Any) -> list[str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError("'gematria_methods' must be a JSON list of method names")
+    if not value:
+        raise ValueError("'gematria_methods' must contain at least one method")
+    methods = [item.strip().upper() for item in value]
+    unknown = sorted(set(methods) - GEMATRIA_METHODS)
+    if unknown:
+        raise ValueError(f"Unknown gematria_methods: {', '.join(unknown)}")
+    return methods
+
+
+def _validate_book(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in BOOK_NAMES:
+        raise ValueError("'book' must be an English Tanakh book name")
+    return value
+
+
+def _validate_scope(body: dict[str, Any]) -> str:
+    value = body.get("corpus_scope", "torah")
+    if not isinstance(value, str):
+        raise ValueError("'corpus_scope' must be 'torah' or 'tanakh'")
+    return normalize_corpus_scope(value)
 
 
 def _validate_query(body: dict[str, Any]) -> str:
     query = body["query"]
     if not isinstance(query, str) or not query.strip():
         raise ValueError("'query' must be a non-empty string")
+    query = query.strip()
     if len(query) > 500:
         raise ValueError(f"'query' too long ({len(query)} chars, max 500)")
     return query
@@ -130,41 +178,73 @@ def _handle_submit_full_report(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _handle_showcase_name(body: dict[str, Any]) -> dict[str, Any]:
+    return showcase_name(
+        _validate_query(body),
+        corpus_scope=_validate_scope(body),
+        include_tanakh_expansion=_normalize_bool(
+            body.get("include_tanakh_expansion"), default=True
+        ),
+        methods=_validate_methods(
+            body.get("methods"), allowed=RESEARCH_METHODS, field="methods"
+        ),
+        max_variants=_bounded_int(
+            body.get("max_variants"), name="max_variants", default=8, lo=1, hi=24
+        ),
+        max_tasks=_bounded_int(
+            body.get("max_tasks"), name="max_tasks", default=40, lo=1, hi=100
+        ),
+        max_results_per_task=_bounded_int(
+            body.get("max_results_per_task"),
+            name="max_results_per_task",
+            default=6,
+            lo=1,
+            hi=20,
+        ),
+        els_max_skip=_bounded_int(
+            body.get("els_max_skip"), name="els_max_skip", default=60, lo=1, hi=500
+        ),
+        gematria_methods=_validate_gematria_methods(body.get("gematria_methods")),
+        max_gematria_span_words=_bounded_int(
+            body.get("max_gematria_span_words"),
+            name="max_gematria_span_words",
+            default=3,
+            lo=1,
+            hi=10,
+        ),
+    )
+
+
+def _handle_search_name(body: dict[str, Any]) -> dict[str, Any]:
+    return find_name_in_torah(
+        name=_validate_query(body),
+        methods=_validate_methods(
+            body.get("methods"), allowed=SEARCH_METHODS, field="methods"
+        ),
+        book=_validate_book(body.get("book")),
+        max_results=_bounded_int(
+            body.get("max_results"), name="max_results", default=20, lo=1, hi=100
+        ),
+        els_max_skip=_bounded_int(
+            body.get("els_max_skip"), name="els_max_skip", default=500, lo=1, hi=1000
+        ),
+        include_verification=_normalize_bool(
+            body.get("include_verification"), default=True
+        ),
+        corpus_scope=_validate_scope(body),
+    )
+
+
 def _build_routes() -> dict[str, dict[str, Any]]:
     return {
         "/health": {
             "GET": lambda _body: {"status": "ok"},
         },
         "/api/showcase-name": {
-            "POST": lambda body: showcase_name(
-                _validate_query(body),
-                corpus_scope=body.get("corpus_scope", "torah"),
-                include_tanakh_expansion=_normalize_bool(
-                    body.get("include_tanakh_expansion"),
-                    default=True,
-                ),
-                methods=body.get("methods"),
-                max_variants=_clamp(body.get("max_variants"), 8, 1, 24),
-                max_tasks=_clamp(body.get("max_tasks"), 40, 1, 100),
-                max_results_per_task=_clamp(body.get("max_results_per_task"), 6, 1, 20),
-                els_max_skip=_clamp(body.get("els_max_skip"), 60, 1, 500),
-                gematria_methods=body.get("gematria_methods"),
-                max_gematria_span_words=_clamp(body.get("max_gematria_span_words"), 3, 1, 10),
-            ),
+            "POST": _handle_showcase_name,
         },
         "/api/search-name": {
-            "POST": lambda body: find_name_in_torah(
-                name=_validate_query(body),
-                methods=body.get("methods"),
-                book=body.get("book"),
-                max_results=_clamp(body.get("max_results"), 20, 1, 100),
-                els_max_skip=_clamp(body.get("els_max_skip"), 500, 1, 1000),
-                include_verification=_normalize_bool(
-                    body.get("include_verification"),
-                    default=True,
-                ),
-                corpus_scope=body.get("corpus_scope", "torah"),
-            ),
+            "POST": _handle_search_name,
         },
         "/api/full-report": {
             "POST": _handle_full_report,
@@ -201,16 +281,6 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method: str) -> None:
         parsed = urlparse(self.path)
-        if method == "GET" and parsed.path.startswith("/api/jobs/"):
-            from autogematria import jobs as _jobs
-
-            job_id = parsed.path[len("/api/jobs/") :]
-            job = _jobs.get_job(job_id)
-            if job is None:
-                self._json_response({"error": "job not found"}, status=404)
-                return
-            self._json_response(job)
-            return
         if method == "GET" and parsed.path in ("/", "/ui"):
             from autogematria.tools.web_ui import build_ui_html
             self._html_response(build_ui_html(self._base_url()))
@@ -224,12 +294,29 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
         if method == "GET" and parsed.path == "/.well-known/autogematria-agent.json":
             self._json_response(build_agent_manifest(self._base_url()))
             return
+        if method == "GET" and parsed.path == "/ready":
+            payload, ready = readiness_payload()
+            self._json_response(payload, status=200 if ready else 503)
+            return
+        if parsed.path.startswith("/api/") and not self._authorize():
+            self._json_response({"error": "Unauthorized"}, status=401)
+            return
+        if method == "GET" and parsed.path.startswith("/api/jobs/"):
+            from autogematria import jobs as _jobs
+
+            job_id = parsed.path[len("/api/jobs/") :]
+            if not job_id or "/" in job_id:
+                self._json_response({"error": "Not found"}, status=404)
+                return
+            job = _jobs.get_job(job_id)
+            if job is None:
+                self._json_response({"error": "job not found"}, status=404)
+                return
+            self._json_response(job)
+            return
         route = self.routes.get(parsed.path)
         if route is None or method not in route:
             self._json_response({"error": "Not found"}, status=404)
-            return
-        if not self._authorize():
-            self._json_response({"error": "Unauthorized"}, status=401)
             return
         try:
             body = self._read_json_body() if method == "POST" else {}
@@ -254,13 +341,17 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
             return True
         auth = self.headers.get("Authorization", "")
         if auth.startswith("Bearer "):
-            return auth[len("Bearer ") :] == expected
-        return self.headers.get("X-API-Key") == expected
+            return hmac.compare_digest(auth[len("Bearer ") :], expected)
+        provided = self.headers.get("X-API-Key") or ""
+        return hmac.compare_digest(provided, expected)
 
     _MAX_BODY_BYTES = 65_536  # 64 KB
 
     def _read_json_body(self) -> dict[str, Any]:
-        content_len = int(self.headers.get("Content-Length", "0"))
+        try:
+            content_len = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ValueError("Invalid Content-Length header") from exc
         if content_len <= 0:
             return {}
         if content_len > self._MAX_BODY_BYTES:
@@ -317,7 +408,10 @@ class AutoGematriaHandler(BaseHTTPRequestHandler):
 
 def create_server(port: int) -> ThreadingHTTPServer:
     from autogematria.job_worker import start_worker
+    from autogematria.runtime_data import ensure_runtime_state, validate_corpus_database
 
+    validate_corpus_database()
+    ensure_runtime_state()
     start_worker()
     ThreadingHTTPServer.allow_reuse_address = True
     return ThreadingHTTPServer(("0.0.0.0", port), AutoGematriaHandler)

@@ -15,12 +15,24 @@ source .venv/bin/activate
 source .venv/bin/activate && python3 -m pytest tests/ -v --tb=short
 ```
 
-The project venv at `/home/ubuntu/gematria/.venv/` is an editable install of the package (`pip install -e ".[dev]"`) with all dependencies (`hebrew`, `httpx`, `networkx`, `tqdm`, `scipy`, `pytest`) already resolved. Activate it and everything imports without extra `PYTHONPATH` tweaks.
+The project venv at `/home/ubuntu/gematria/.venv/` is an editable install of the package (`pip install -e ".[dev]"`) with all dependencies (`hebrew`, `httpx`, `networkx`, `tqdm`, `pytest`) already resolved. Activate it and everything imports without extra `PYTHONPATH` tweaks.
 
 ## Key Architecture Decisions
 
-- **SQLite single-file DB** at `data/autogematria.db`. All 22 gematria methods are precomputed for all 40,664 unique word forms.
+- **Generated corpus data is external runtime data.** In a checkout it defaults to
+  `data/autogematria.db`; deployments set `AUTOGEMATRIA_DATA_DIR` and mount it read-only.
+- **Writable state is separate** under `AUTOGEMATRIA_VAR_DIR` (default
+  `/tmp/autogematria`) for the job queue and timing log.
+- **Packaged reference resources** live under `src/autogematria/resources/`, not `data/`.
+- **Use `ag-prepare-data`** for atomic download/ingest/index/validate/activation and
+  `ag-data-check` for release validation.
+- **Corpus connections are read-only.** All 22 gematria methods are precomputed for all 40,664
+  unique word forms.
+- **One API replica** owns one worker thread and a local SQLite job queue. Do not share its
+  writable state volume between replicas.
 - **No LLM dependency** for name analysis, gematria, or Torah search. The web UI and all CLIs are fully deterministic.
+- **Emtzaei Tevot is experimental and explicit-only** in unified search. Its odd-word unique-center
+  findings stay visible but are excluded from conservative verdicts.
 - **Name parsing** handles Hebrew, English, and mixed input. The parser in `tools/name_parser.py` identifies first name, patronymic (ben/bat), father/mother names, and surname.
 - **Transliteration** uses an expanded dictionary of ~100+ common Jewish names in `tools/name_variants.py`.
 - **Kabbalistic analysis** in `research/kabbalistic.py` covers letter meanings, milui, AtBash, sefirot, and four worlds from traditional Orthodox sources.
@@ -33,6 +45,9 @@ The project venv at `/home/ubuntu/gematria/.venv/` is an editable install of the
 | `research/name_report.py` | Top-level name report orchestrator |
 | `research/cross_compare.py` | Cross-comparison engine for name components |
 | `research/kabbalistic.py` | Letter analysis, milui, AtBash, four worlds |
+| `runtime_data.py` | Read-only DB connections, validation, readiness |
+| `prepare_data.py` | Safe end-to-end corpus build |
+| `report_service.py` | Canonical full-report composition |
 | `tools/api_server.py` | HTTP API + web UI (port 8080) |
 | `tools/web_ui.py` | Browser SPA served at `/` |
 | `tools/name_parser.py` | Name structure parser |
@@ -43,6 +58,9 @@ The project venv at `/home/ubuntu/gematria/.venv/` is an editable install of the
 The server (`ag-serve-api`) exposes:
 
 - `GET /` — Web UI
+- `GET /health` — process liveness
+- `GET /ready` — corpus/state readiness
+- `POST /api/jobs` and `GET /api/jobs/{id}` — asynchronous full reports
 - `POST /api/full-report` — `{"query": "david ben yishai"}` → full analysis + graph
 - `POST /api/reverse-lookup` — `{"value": 345, "method": "MISPAR_HECHRACHI"}` → matching words
 - `POST /api/estimate` — `{"query": "...", "operation": "full_report"}` → ETA in seconds
@@ -66,6 +84,8 @@ The server (`ag-serve-api`) exposes:
 
 **Add a new kabbalistic concept:** Extend `research/kabbalistic.py` and wire into `research/name_report.py`.
 
-**Expand gematria connections library:** Edit `data/gematria/connections.json` (source-backed pairs with Talmudic/Kabbalistic references).
+**Expand gematria connections library:** Edit
+`src/autogematria/resources/gematria/connections.json` (source-backed pairs with
+Talmudic/Kabbalistic references).
 
 **Add gender recognition for names:** Update `_FEMALE_NAMES_HEBREW` / `_MALE_NAMES_HEBREW` in `tools/name_parser.py`.

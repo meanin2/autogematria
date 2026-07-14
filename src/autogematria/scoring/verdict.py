@@ -31,6 +31,11 @@ COMMON_FIRST_NAMES = {
 }
 
 
+def _eligible_for_verdict(row: dict[str, Any]) -> bool:
+    features = ((row.get("confidence") or {}).get("features") or {})
+    return bool(features.get("eligible_for_verdict", True))
+
+
 def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, value))
 
@@ -53,7 +58,11 @@ def build_token_support(token_results: dict[str, dict[str, Any]], tokens: list[s
     """Summarize per-token evidence for full-name aggregation."""
     support = _empty_token_support(tokens)
     for token in tokens:
-        rows = token_results.get(token, {}).get("results", [])
+        rows = [
+            row
+            for row in token_results.get(token, {}).get("results", [])
+            if _eligible_for_verdict(row)
+        ]
         if not rows:
             continue
         best = rows[0]
@@ -94,7 +103,8 @@ def aggregate_full_name_verdict(
 ) -> dict[str, Any]:
     """Combine all evidence rows into one conservative verdict."""
     tokens = [t for t in query.split() if t]
-    strongest = ranked_results[0] if ranked_results else None
+    eligible_results = [row for row in ranked_results if _eligible_for_verdict(row)]
+    strongest = eligible_results[0] if eligible_results else None
     strongest_conf = (strongest or {}).get("confidence") or {}
     strongest_score = float(strongest_conf.get("score", 0.0) or 0.0)
 
@@ -140,20 +150,20 @@ def aggregate_full_name_verdict(
             row.get("method") == "SUBSTRING"
             and (((row.get("confidence") or {}).get("features") or {}).get("match_type") == "exact_phrase")
             and bool((row.get("verification") or {}).get("verified"))
-            for row in ranked_results
+            for row in eligible_results
         )
         proximity_hit = any(
             row.get("method") == "ELS_PROXIMITY"
-            for row in ranked_results
+            for row in eligible_results
         )
         best_proximity_score = max(
             (float((row.get("confidence") or {}).get("score", 0.0) or 0.0)
-             for row in ranked_results if row.get("method") == "ELS_PROXIMITY"),
+             for row in eligible_results if row.get("method") == "ELS_PROXIMITY"),
             default=0.0,
         )
         token_fallback_used = any(
             bool((((row.get("confidence") or {}).get("features") or {}).get("token_fallback")))
-            for row in ranked_results
+            for row in eligible_results
         )
         all_tokens_supported = all(support.get(t, {}).get("has_any_support") for t in tokens)
         all_tokens_direct = all(support.get(t, {}).get("has_direct_exact") for t in tokens)

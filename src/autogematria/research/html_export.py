@@ -102,11 +102,21 @@ def _explain_finding(query: str, row: dict[str, Any], *, is_headline: bool) -> s
             base += " It is the main finding because direct verified text matches outrank acrostic, ELS, and gematria methods."
         return base + query_note
 
-    if method in {"ROSHEI_TEVOT", "SOFEI_TEVOT"}:
-        edge = "initial" if method == "ROSHEI_TEVOT" else "final"
+    if method in {"ROSHEI_TEVOT", "SOFEI_TEVOT", "EMTZAEI_TEVOT"}:
+        edge = (
+            "initial" if method == "ROSHEI_TEVOT"
+            else "middle" if method == "EMTZAEI_TEVOT"
+            else "final"
+        )
+        experimental_note = (
+            " This middle-letter method is experimental and does not contribute to the verdict."
+            if method == "EMTZAEI_TEVOT"
+            else ""
+        )
         return (
             f"This is an acrostic-style finding: the {edge} letters of consecutive words spell "
             f"{variant_text!r}. It is weaker than a direct textual occurrence."
+            + experimental_note
             + query_note
         )
 

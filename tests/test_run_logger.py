@@ -1,8 +1,6 @@
 """Tests for the run logger and ETA estimator."""
 
 import json
-import tempfile
-from pathlib import Path
 
 from autogematria.run_logger import RunTimer, estimate_seconds, get_run_stats
 

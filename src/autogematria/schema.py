@@ -3,6 +3,8 @@
 import sqlite3
 from pathlib import Path
 
+from autogematria.config import SCHEMA_VERSION
+
 SCHEMA_DDL = """
 CREATE TABLE IF NOT EXISTS books (
     book_id      INTEGER PRIMARY KEY,
@@ -91,4 +93,5 @@ def create_schema(db_path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA_DDL)
+    conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn

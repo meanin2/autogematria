@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import sqlite3
-from dataclasses import dataclass
+from array import array
+from dataclasses import dataclass, replace
 from functools import lru_cache
-from dataclasses import replace
 from typing import Any, Iterable
 
 from hebrew import Hebrew
@@ -14,6 +13,8 @@ from hebrew.gematria import GematriaTypes
 from autogematria.config import DB_PATH, normalize_corpus_scope
 from autogematria.normalize import FinalsPolicy, normalize_hebrew
 from autogematria.research.schema import ResearchFinding, ResearchVariant
+from autogematria.runtime_data import DataValidationError, connect_corpus
+from autogematria.search.corpus_index import load_tevot_index
 
 
 @dataclass(frozen=True)
@@ -44,26 +45,107 @@ def _gematria_value(text: str, method: str) -> int:
     return Hebrew(clean).gematria(gtype)
 
 
-@lru_cache(maxsize=12)
-def _load_method_rows(
-    db_path_str: str,
-    method_name: str,
+@lru_cache(maxsize=8)
+def _load_method_values(db_path_str: str, method_name: str) -> array:
+    """Load one gematria value per corpus word in a compact signed-int array."""
+    conn = connect_corpus(db_path_str, row_factory=False)
+    try:
+        values = array("q")
+        expected_index = 0
+        cursor = conn.execute(
+            "SELECT w.absolute_word_index, wg.value "
+            "FROM words w "
+            "JOIN word_forms wf ON w.word_normalized = wf.form_text "
+            "JOIN word_gematria wg ON wf.form_id = wg.form_id "
+            "JOIN gematria_methods gm ON wg.method_id = gm.method_id "
+            "WHERE gm.method_name = ? ORDER BY w.absolute_word_index",
+            (method_name,),
+        )
+        while rows := cursor.fetchmany(10_000):
+            for absolute_index, value in rows:
+                if int(absolute_index) != expected_index:
+                    raise DataValidationError(
+                        "gematria values must align with gapless absolute_word_index; "
+                        f"expected {expected_index}, found {absolute_index}"
+                    )
+                values.append(int(value))
+                expected_index += 1
+        if not values:
+            raise DataValidationError(f"No corpus values found for gematria method {method_name}")
+        return values
+    finally:
+        conn.close()
+
+
+def _search_bounds(
+    db_path: str,
     corpus_scope: str,
     book: str | None,
-) -> tuple[dict[str, Any], ...]:
-    conn = sqlite3.connect(db_path_str)
-    conn.row_factory = sqlite3.Row
+) -> tuple[int, int]:
+    """Return an absolute-word half-open interval for a scope/book filter."""
+    index = load_tevot_index(db_path)
+    scope = normalize_corpus_scope(corpus_scope)
+    if book:
+        bounds = index.book_offsets.get(book)
+        if bounds is None:
+            return (0, 0)
+        if scope == "torah":
+            torah_start, torah_end = index.scope_offsets["torah"]
+            if bounds[0] < torah_start or bounds[1] > torah_end:
+                return (0, 0)
+    else:
+        bounds = index.scope_offsets[scope]
+    return (bounds[0], bounds[1] + 1)
+
+
+def _load_word_span(
+    db_path: str,
+    method_name: str,
+    start_index: int,
+    end_index: int,
+) -> list[dict[str, Any]]:
+    """Resolve metadata only for a span that has already matched compact values."""
+    conn = connect_corpus(db_path)
     try:
-        params: list[Any] = [method_name]
-        where = ["gm.method_name = ?"]
+        rows = conn.execute(
+            "SELECT w.absolute_word_index, w.word_raw, w.word_normalized, "
+            "wg.value, b.api_name, c.chapter_num, v.verse_num "
+            "FROM words w "
+            "JOIN word_forms wf ON w.word_normalized = wf.form_text "
+            "JOIN word_gematria wg ON wf.form_id = wg.form_id "
+            "JOIN gematria_methods gm ON wg.method_id = gm.method_id "
+            "JOIN verses v ON w.verse_id = v.verse_id "
+            "JOIN chapters c ON v.chapter_id = c.chapter_id "
+            "JOIN books b ON c.book_id = b.book_id "
+            "WHERE gm.method_name = ? AND w.absolute_word_index BETWEEN ? AND ? "
+            "ORDER BY w.absolute_word_index",
+            (method_name, start_index, end_index),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def _load_exact_rows(
+    db_path: str,
+    method_name: str,
+    expected_value: int,
+    corpus_scope: str,
+    book: str | None,
+    max_results: int,
+) -> list[dict[str, Any]]:
+    """Use the value index for single-word equivalences without loading the corpus."""
+    conn = connect_corpus(db_path)
+    try:
+        where = ["gm.method_name = ?", "wg.value = ?"]
+        params: list[Any] = [method_name, expected_value]
         scope = normalize_corpus_scope(corpus_scope)
         if scope == "torah":
             where.append("b.category = 'Torah'")
         if book:
             where.append("b.api_name = ?")
             params.append(book)
-
-        sql = (
+        rows = conn.execute(
             "SELECT w.absolute_word_index, w.word_raw, w.word_normalized, "
             "wg.value, b.api_name, c.chapter_num, v.verse_num "
             "FROM word_gematria wg "
@@ -74,12 +156,20 @@ def _load_method_rows(
             "JOIN chapters c ON v.chapter_id = c.chapter_id "
             "JOIN books b ON c.book_id = b.book_id "
             f"WHERE {' AND '.join(where)} "
-            "ORDER BY w.absolute_word_index"
-        )
-        rows = conn.execute(sql, params).fetchall()
-        return tuple(dict(row) for row in rows)
+            "ORDER BY w.absolute_word_index LIMIT ?",
+            [*params, max_results],
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()
+
+
+def _span_is_within_one_book(rows: list[dict[str, Any]], expected_length: int) -> bool:
+    return (
+        len(rows) == expected_length
+        and bool(rows)
+        and rows[0]["api_name"] == rows[-1]["api_name"]
+    )
 
 
 def _row_location(row: dict[str, Any]) -> dict[str, Any]:
@@ -158,12 +248,17 @@ def _search_exact_word(
     method_name: str,
     max_results: int,
 ) -> list[ResearchFinding]:
-    rows = _load_method_rows(str(DB_PATH), method_name, corpus_scope, book)
     expected = _gematria_value(query, method_name)
+    rows = _load_exact_rows(
+        str(DB_PATH),
+        method_name,
+        expected,
+        corpus_scope,
+        book,
+        max_results,
+    )
     matches: list[ResearchFinding] = []
-    for rank, row in enumerate((row for row in rows if int(row["value"]) == expected), 1):
-        if len(matches) >= max_results:
-            break
+    for rank, row in enumerate(rows, 1):
         score = 0.85
         match = GematriaSignatureMatch(
             method="GEMATRIA",
@@ -203,10 +298,6 @@ def _search_exact_word(
     return matches
 
 
-def _window_rows(rows: tuple[dict[str, Any], ...], start: int, span: int) -> list[dict[str, Any]]:
-    return list(rows[start : start + span])
-
-
 def _search_exact_sequence(
     *,
     task_id: str,
@@ -223,12 +314,22 @@ def _search_exact_sequence(
         return []
 
     expected = [_gematria_value(token, method_name) for token in tokens]
-    rows = _load_method_rows(str(DB_PATH), method_name, corpus_scope, book)
+    db_path = str(DB_PATH)
+    values = _load_method_values(db_path, method_name)
+    low, high = _search_bounds(db_path, corpus_scope, book)
+    high = min(high, len(values))
     matches: list[ResearchFinding] = []
-    for idx in range(0, max(0, len(rows) - len(expected) + 1)):
-        candidate = rows[idx : idx + len(expected)]
-        candidate_values = [int(row["value"]) for row in candidate]
+    for idx in range(low, max(low, high - len(expected) + 1)):
+        candidate_values = list(values[idx : idx + len(expected)])
         if candidate_values != expected:
+            continue
+        candidate = _load_word_span(
+            db_path,
+            method_name,
+            idx,
+            idx + len(expected) - 1,
+        )
+        if not _span_is_within_one_book(candidate, len(expected)):
             continue
         words = [
             {
@@ -243,8 +344,8 @@ def _search_exact_sequence(
             method="GEMATRIA",
             mode="exact_sequence",
             values=expected,
-            start_index=int(candidate[0]["absolute_word_index"]),
-            end_index=int(candidate[-1]["absolute_word_index"]),
+            start_index=idx,
+            end_index=idx + len(expected) - 1,
             matched_words=words,
             score=_sequence_score(len(expected), expected, "exact_sequence"),
             verification={
@@ -290,24 +391,28 @@ def _search_sum_patterns(
         return []
 
     expected_sum = sum(_gematria_value(token, method_name) for token in tokens)
-    rows = _load_method_rows(str(DB_PATH), method_name, corpus_scope, book)
-    if not rows:
+    db_path = str(DB_PATH)
+    values = _load_method_values(db_path, method_name)
+    low, high = _search_bounds(db_path, corpus_scope, book)
+    high = min(high, len(values))
+    if low >= high:
         return []
 
-    prefix: list[int] = [0]
-    for row in rows:
-        prefix.append(prefix[-1] + int(row["value"]))
-
     matches: list[ResearchFinding] = []
-    for start in range(0, len(rows)):
+    for start in range(low, high):
+        total = 0
         for span in range(1, max_span + 1):
             end = start + span
-            if end > len(rows):
+            if end > high:
                 break
-            total = prefix[end] - prefix[start]
+            total += int(values[end - 1])
+            if total > expected_sum:
+                break
             if total != expected_sum:
                 continue
-            candidate = _window_rows(rows, start, span)
+            candidate = _load_word_span(db_path, method_name, start, end - 1)
+            if not _span_is_within_one_book(candidate, span):
+                continue
             words = [
                 {
                     "location": _row_location(row),

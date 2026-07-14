@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from autogematria.config import DATA_DIR
+from autogematria.config import RESOURCE_DIR
 
-GROUND_TRUTH_PATH = DATA_DIR / "ground_truth" / "known_findings_v2.jsonl"
-LEGACY_GROUND_TRUTH_PATH = DATA_DIR / "ground_truth" / "known_findings.jsonl"
+GROUND_TRUTH_PATH = RESOURCE_DIR / "ground_truth" / "known_findings_v2.jsonl"
+LEGACY_GROUND_TRUTH_PATH = RESOURCE_DIR / "ground_truth" / "known_findings.jsonl"
 
 
 @dataclass

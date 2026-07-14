@@ -11,8 +11,8 @@ Improve name-finding quality for gematria-based relationships using source-backe
 
 ## Target Files
 - `src/autogematria/gematria_connections.py` -- ranking and source-link scoring
-- `data/gematria/connections.json` -- source-backed gematria findings
-- `data/ground_truth/known_findings_v2.jsonl` -- benchmark/eval coverage for gematria
+- `src/autogematria/resources/gematria/connections.json` -- source-backed gematria findings
+- `src/autogematria/resources/ground_truth/known_findings_v2.jsonl` -- benchmark/eval coverage for gematria
 
 ## Constraints
 - Keep source-backed findings clearly distinguished from generic same-value words.

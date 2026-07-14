@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest -q
+
+      - name: Build wheel
+        run: python -m pip wheel --no-deps . --wheel-dir dist
+
+      - name: Verify packaged resources
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          wheel = glob.glob("dist/autogematria-*.whl")[0]
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          required = {
+              "autogematria/resources/gematria/connections.json",
+              "autogematria/resources/ground_truth/known_findings.jsonl",
+              "autogematria/resources/ground_truth/known_findings_v2.jsonl",
+          }
+          missing = required - names
+          if missing:
+              raise SystemExit(f"wheel is missing resources: {sorted(missing)}")
+          PY

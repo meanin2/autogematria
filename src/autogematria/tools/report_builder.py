@@ -5,7 +5,6 @@ exactly which letters encode the name.  Supports publishing to here.now.
 """
 
 import json
-import sqlite3
 from html import escape
 from pathlib import Path
 
@@ -13,8 +12,8 @@ import httpx
 
 from autogematria.config import DB_PATH, SEFARIA_BASE
 from autogematria.normalize import extract_letters, FinalsPolicy
-from autogematria.search.els_proximity import find_proximity_pairs
-from autogematria.tools.tool_functions import find_name_in_torah, gematria_lookup, get_verse
+from autogematria.runtime_data import connect_corpus
+from autogematria.tools.tool_functions import find_name_in_torah
 
 # ---------------------------------------------------------------------------
 # Verse highlighting
@@ -623,8 +622,7 @@ def build_name_report(
     Returns:
         Dict with 'html_path' and 'reports' data.
     """
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
+    conn = connect_corpus(DB_PATH)
 
     sections = []
     first_name_count = None
@@ -649,8 +647,8 @@ def build_name_report(
         "html_path": str(html_path),
         "html_size": html_path.stat().st_size,
         "sections": [
-            {"name": n, "label": l, "findings": len(r["results"])}
-            for n, l, r, _ in sections
+            {"name": name, "label": label, "findings": len(report["results"])}
+            for name, label, report, _ in sections
         ],
     }
 

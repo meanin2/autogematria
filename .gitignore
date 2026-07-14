@@ -1,5 +1,7 @@
 data/corpus/
 data/autogematria.db
+data/autogematria.db-*
+data/autogematria.db.building*
 data/run_log.jsonl
 data/jobs.db
 data/jobs.db-*

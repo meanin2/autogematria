@@ -108,7 +108,6 @@ def test_show_name_cli_can_publish_here_now(monkeypatch, capsys, tmp_path):
     })
 
     def fake_publish_directory(site_dir, **kwargs):
-        site_root = tmp_path / "published"
         assert str(site_dir)
         return {
             "slug": "demo-slug",

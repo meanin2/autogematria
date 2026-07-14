@@ -1,97 +1,106 @@
 # AutoGematria
 
-A Torah name-finding, gematria analysis, and kabbalistic insight engine. Given a Hebrew name (or English — it transliterates automatically), find where it appears in the Torah through traditional methods and discover deep numerical and spiritual connections.
+AutoGematria is a deterministic Hebrew text-research application. It parses Jewish names,
+computes classical gematria profiles, searches a prepared Tanakh corpus, and produces the same
+structured report through a browser UI, HTTP API, or CLI.
 
-There is a Jewish tradition that every person's name can be found in the Torah. This project builds the tools to systematically discover those connections.
+The output is exploratory. Text patterns, ELS results, acrostics, and numerical equivalences are
+not proof of personal, historical, statistical, or theological significance. The scorer verifies
+mechanical claims and can abstain; interpretation remains with the reader.
 
-## What's Inside
+## What works
 
-**Full Tanakh corpus** — 39 books, 23,206 verses, 306,869 words, 1,205,822 letters, all stored in SQLite with gapless absolute letter indices for efficient ELS searching.
+- A full Tanakh corpus represented as 39 API book units (the 24-book Jewish canon with Samuel,
+  Kings, Chronicles, and the Twelve represented as separate source units).
+- 23,206 verses, 306,869 words, 1,205,822 letters, and gapless absolute positions in SQLite.
+- 22 precomputed gematria methods across 40,664 unique word forms (894,608 values).
+- Direct substring, ELS, ELS-proximity, Roshei Tevot, and Sofei Tevot searches.
+- Reverse gematria lookup, structured name parsing, cross-component comparisons, and a
+  source-backed connection library.
+- One canonical full-report composer shared by the web API, background jobs, and
+  `ag-full-report`.
+- An optional experimental Emtzaei Tevot search with an explicit, testable policy.
 
-**22 gematria methods** — Standard (Mispar Hechrachi), Gadol, Katan, Siduri, Atbash, Albam, and 16 more, precomputed for all 40,664 unique word forms (894,608 total values).
+Emtzaei Tevot uses only the unique interior center of odd-length words containing at least three
+letters. One-letter and even-length words are hard sequence breaks. It is opt-in for ordinary
+searches, is visibly labeled experimental in reports, and is excluded from conservative verdicts.
 
-**Reverse gematria lookup** — Given any number, instantly find all Tanakh words with that value across all 6 report methods (Standard, Full Value, Reduced, Ordinal, AtBash, Kolel).
+## Requirements
 
-**5 search methods:**
-- **Substring** — direct text matching within and across words
-- **ELS** — equidistant letter sequences with fast skip-string search (Boyer-Moore)
-- **ELS Proximity** — co-located ELS pairs for multi-word names
-- **Roshei Tevot** — first letters of consecutive words
-- **Sofei Tevot** — last letters of consecutive words
+- Python 3.11 or newer
+- CPU only; no GPU or LLM service is required
+- About 194 MB for the prepared SQLite database
+- At least 450 MB free while rebuilding, because the old and new databases can coexist briefly
 
-**Name parsing** — Understands complex Jewish name structures: `david ben yishai and nitzevet`, `שרה בת אברהם ורחל כהן`. Identifies first name, patronymic, father/mother, and surname.
+A representative full-corpus search used about 38–40 MB peak RSS on the development machine;
+the complete report path used about 60 MB and finished in roughly 5 seconds. Actual memory and
+runtime vary with query breadth and configured search limits.
 
-**Kabbalistic analysis** — Orthodox sources (Sefer Yetzirah, Arizal, Zohar):
-- Letter meanings and symbolism
-- Milui (letter-filling) with hidden values
-- AtBash cipher transformation
-- Sefirah association
-- Four Worlds (ABYA) breakdown
-
-**Cross-comparison engine** — Finds surprising gematria matches across all combinations of name components and methods. Includes Torah word matching.
-
-**Statistical significance** — empirical p-values against null models with Benjamini-Hochberg FDR correction.
-
-**Web UI** — Full browser interface at `http://localhost:8080/` with name analysis, reverse lookup, progress bar with ETA, and interactive results. No LLM required.
-
-**Run logging** — Every operation is timed and logged to `data/run_log.jsonl`. The ETA estimator uses historical data to predict completion time based on input complexity.
-
-## Hardware Requirements
-
-- **CPU only** — no GPU needed. All computation is pure Python + SQLite.
-- **Memory**: ~52 MB peak RSS during a full search. ~16 MB idle.
-- **Storage**: ~50 MB for the SQLite database.
-- **Python**: 3.11+ required.
-
-## Setup
+## Local setup
 
 ```bash
-pip install -e ".[dev]"
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
 
-## Usage
-
-### Download and build the corpus
+Prepare all runtime data in one resumable command:
 
 ```bash
-ag-download                   # Fetch Tanakh from Sefaria API (~8 min)
-ag-ingest                     # Parse JSON → SQLite
-ag-index                      # Precompute all 22 gematria methods
-ag-index-report-methods       # Add optimized reverse-lookup indexes
+ag-prepare-data
+ag-data-check
 ```
 
-### Web UI
+`ag-prepare-data` downloads the configured Sefaria text, validates all expected books and
+chapters, builds a temporary SQLite database, computes all gematria values and indexes, validates
+the result, and atomically activates it. If corpus JSON already exists, avoid network access with:
 
-Start the server and open `http://localhost:8080` in your browser:
+```bash
+ag-prepare-data --skip-download
+```
+
+Stop the API before replacing its corpus. Long-running processes cache compact corpus indexes and
+should be restarted after a successful rebuild.
+
+The lower-level `ag-download`, `ag-ingest`, `ag-index`, and `ag-index-report-methods` commands are
+kept for development, but `ag-prepare-data` is the supported end-to-end path.
+
+## Run the app
 
 ```bash
 ag-serve-api --port 8080
 ```
 
-The web UI provides:
-- **Name Analysis** — Enter any name (Hebrew or English) for a full report
-- **Reverse Lookup** — Search any number to find matching Torah words
-- **About** — Corpus stats and methodology
+Open <http://localhost:8080>. The UI supports full name reports, reverse lookup, progress/status,
+and copyable Markdown output.
 
-### CLI tools
+Useful process checks:
 
 ```bash
-# Search for a name in Torah
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+```
+
+`/health` is a liveness check. `/ready` validates the corpus and writable state directory, and
+returns HTTP 503 when the service cannot accept work.
+
+## CLI
+
+```bash
+# Conservative unified search (experimental Emtzaei is off)
 ag-search "משה"
 ag-search "אברהם" Genesis
 ag-search "משה" --corpus-scope tanakh
 
-# Comprehensive name analysis report
+# Canonical comprehensive report
 ag-full-report "david ben yishai"
-ag-full-report "שרה בת אברהם" --publish --json
+ag-full-report "שרה בת אברהם" --json
 
-# Visual Torah name report with highlighted pesukim
-ag-name-report "דוד בן ישי" --publish --json
-
-# Research-grade multi-method search
+# Specialized visual/research wrappers retained for compatibility
+ag-name-report "דוד בן ישי" --json
 ag-research-name "david ben yishai" --json
 
-# Individual tools
+# Focused tools
 ag-search-name "משה" --json
 ag-lookup-gematria "משה" --json
 ag-explore-gematria-connections "משה" --json
@@ -101,150 +110,145 @@ ag-corpus-stats --json
 ag-verify "דוד בן ישי" --word-breakdown
 ```
 
-### Python API
+Python callers can opt in to the experimental method explicitly:
 
 ```python
 from autogematria.search.unified import UnifiedSearch, UnifiedSearchConfig
 
-cfg = UnifiedSearchConfig(els_max_skip=500)
-searcher = UnifiedSearch(cfg)
-results = searcher.search("משה")
-
-for r in results[:10]:
-    print(f"[{r.method}] {r.location_start.book} {r.location_start.chapter}:{r.location_start.verse}")
-```
-
-```python
-# Full name report
-from autogematria.research.name_report import build_name_report
-report = build_name_report("david ben yishai")
-
-# Reverse gematria lookup
-from autogematria.search.gematria_reverse import reverse_lookup
-words = reverse_lookup(345, method="MISPAR_HECHRACHI")
-
-# Gematria relationship graph
-from autogematria.search.gematria_reverse import build_name_gematria_graph
-graph = build_name_gematria_graph([("דוד", "first_name"), ("בן ישי", "patronymic")])
-
-# Kabbalistic analysis
-from autogematria.research.kabbalistic import full_kabbalistic_analysis
-analysis = full_kabbalistic_analysis("משה")
+config = UnifiedSearchConfig(
+    els_max_skip=100,
+    enable_emtzaei=True,
+)
+results = UnifiedSearch(config).search("משה")
 ```
 
 ## HTTP API
 
-```bash
-ag-serve-api --port 8080
-```
-
-### Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Web UI |
-| GET | `/health` | Health check |
-| POST | `/api/full-report` | Comprehensive name analysis with graph |
-| POST | `/api/reverse-lookup` | Find words by gematria value |
-| POST | `/api/estimate` | ETA estimate for an operation |
-| GET | `/api/run-stats` | Aggregated run history stats |
-| POST | `/api/showcase-name` | Curated presentable result |
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/` or `/ui` | Browser UI |
+| GET | `/health` | Process liveness |
+| GET | `/ready` | Corpus and writable-state readiness |
+| POST | `/api/jobs` | Queue a full report |
+| GET | `/api/jobs/{id}` | Read queued/running/completed report status |
+| POST | `/api/full-report` | Build a full report synchronously |
 | POST | `/api/search-name` | Direct multi-method search |
-| GET | `/for-agents` | Agent instruction page |
+| POST | `/api/showcase-name` | Bounded research plus curated presentation |
+| POST | `/api/reverse-lookup` | Find corpus words by gematria value |
+| POST | `/api/estimate` | Estimate an operation's runtime |
+| GET | `/api/run-stats` | Aggregated local run timings |
+| GET | `/for-agents` | Human-readable agent instructions |
 | GET | `/agent.txt` | Plain-text agent instructions |
 | GET | `/.well-known/autogematria-agent.json` | Machine-readable manifest |
 
-### Examples
+Example:
 
 ```bash
-# Full report
-curl -X POST http://localhost:8080/api/full-report \
-  -H "Content-Type: application/json" \
-  -d '{"query":"david ben yishai"}'
+curl -X POST http://localhost:8080/api/search-name \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"משה","methods":["substring","els"],"max_results":10}'
 
-# Reverse lookup
-curl -X POST http://localhost:8080/api/reverse-lookup \
-  -H "Content-Type: application/json" \
-  -d '{"value":345,"method":"MISPAR_HECHRACHI"}'
+curl -X POST http://localhost:8080/api/search-name \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"אב","methods":["emtzaei_tevot"],"max_results":10}'
 ```
 
-Set `AUTOGEMATRIA_API_TOKEN` to require `Authorization: Bearer <token>` on requests.
+Set `AUTOGEMATRIA_API_TOKEN` to protect every `/api/*` route. Public UI/documentation and health
+routes remain accessible. API clients may send either `Authorization: Bearer <token>` or
+`X-API-Key: <token>`. The browser UI has an optional token field under About; it stores the token
+only in local storage for that origin.
 
-## Architecture
+Request bodies are limited to 64 KiB. Queries, method names, scopes, books, and search budgets are
+validated at the HTTP boundary.
 
-- **Data source**: Sefaria API, "Tanach with Text Only" (Public Domain)
-- **Storage**: SQLite (single file, ~50MB)
-- **Gematria engine**: [hebrew](https://pypi.org/project/hebrew/) PyPI package
-- **Search**: Pure Python, in-memory letter arrays for ELS
-- **Stats**: scipy for BH/FDR correction, custom null models
-- **Name parsing**: Regex-based parser for Hebrew/English/mixed input
-- **Kabbalistic data**: Letter meanings, milui spellings, sefirot from traditional sources
-- **Connection library**: Curated source-backed equivalence records in `data/gematria/connections.json`
+## Runtime data model
 
-## Project Structure
+AutoGematria separates immutable corpus data, packaged reference resources, and writable state:
 
-```
-src/autogematria/
-  config.py                   # Book registry, paths
-  normalize.py                # Hebrew text normalization
-  schema.py                   # SQLite DDL
-  download.py                 # Sefaria API → local JSON
-  ingest.py                   # JSON → SQLite
-  gematria_index.py           # Precompute all 22 gematria methods
-  gematria_report_index.py    # Optimized reverse-lookup indexes
-  gematria_connections.py     # Source-backed relationship graph
-  search/
-    unified.py                # Fan-out across all methods
-    substring.py              # Direct text matching
-    els.py                    # Equidistant Letter Sequences
-    els_proximity.py          # Co-located ELS pairs
-    roshei_tevot.py           # First/last letter acrostics
-    gematria.py               # Corpus-wide gematria search
-    gematria_reverse.py       # Reverse lookup: value → words, graph builder
-  research/
-    name_report.py            # Top-level name report orchestrator
-    kabbalistic.py            # Letter meanings, milui, AtBash, four worlds
-    cross_compare.py          # Cross-comparison engine
-    html_report.py            # Full HTML report renderer
-    html_export.py            # Showcase HTML export with Sefaria translations
-    runner.py                 # Research task runner
-    tasks.py                  # Task queue builder
-    presentation.py           # Finding curation (headline/supporting/interesting)
-  scoring/
-    calibrated.py             # Deterministic per-result evidence scoring
-    verdict.py                # Conservative verdict combiner
-  tools/
-    api_server.py             # HTTP API + web UI server
-    web_ui.py                 # Browser UI (single-page app)
-    name_parser.py            # Jewish name structure parser
-    name_variants.py          # Hebrew variant generation & transliteration
-    full_report_cli.py        # ag-full-report CLI
-    report_builder.py         # ag-name-report CLI
-    research_cli.py           # ag-research-name CLI
-    cli_entrypoints.py        # Individual tool CLIs
-    tool_functions.py         # Typed Python functions
-    verification.py           # Per-finding verification payloads
-    agent_site.py             # Agent instruction surfaces
-  stats/
-    significance.py           # Empirical p-values, BH correction
-    null_models.py            # Null corpus generators
-  autoresearch/
-    harness.py                # Frozen benchmark runner
-    scorer.py                 # Composite scoring metric
-    ground_truth.py           # Dataset loader
-  run_logger.py               # Run timing, logging, ETA estimation
-tests/                        # 136 tests
-```
+| Data | Default in a checkout | Override |
+| --- | --- | --- |
+| Corpus JSON + `autogematria.db` | `./data` | `AUTOGEMATRIA_DATA_DIR` |
+| Jobs + timing log | `/tmp/autogematria` | `AUTOGEMATRIA_VAR_DIR` |
+| Curated connections + evaluation data | installed package resources | none |
 
-## Tests
+Corpus queries use read-only SQLite connections. The API uses a local SQLite job queue and one
+worker thread. Running jobs abandoned by a process restart are requeued once by default and then
+failed rather than remaining stuck forever.
 
-```bash
-pytest tests/ -v
-```
+At startup, every job left in the running state by the previous single worker is recovered
+immediately. `AUTOGEMATRIA_JOB_MAX_ATTEMPTS` controls the total claim attempts before failure
+(default `2`).
 
-## Container Deploy
+This design intentionally supports one API replica. Do not mount one writable state volume into
+multiple replicas; use an external queue before scaling horizontally.
+
+## Container deployment
+
+The image contains application code and packaged reference resources, not the 194 MB generated
+corpus. Prepare a persistent data volume first, then mount it read-only into the API container:
 
 ```bash
 docker build -t autogematria-api .
-docker run --rm -p 8080:8080 autogematria-api
+docker volume create autogematria-data
+docker volume create autogematria-state
+
+# One-time preparation; rerun to rebuild safely.
+docker run --rm \
+  -v autogematria-data:/data \
+  -v autogematria-state:/var/lib/autogematria \
+  autogematria-api ag-prepare-data
+
+# Single production replica.
+docker run -d --name autogematria \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -v autogematria-data:/data:ro \
+  -v autogematria-state:/var/lib/autogematria \
+  -e AUTOGEMATRIA_API_TOKEN='replace-with-a-long-random-token' \
+  autogematria-api
 ```
+
+For a bind mount, make the state directory writable by the image's non-root `autogematria` user.
+The corpus mount can and should remain read-only. The image health check calls `/ready`.
+
+## Architecture
+
+```text
+Sefaria corpus JSON
+        │
+        ▼
+ag-prepare-data ──► versioned, validated SQLite corpus (read-only at runtime)
+                                │
+             ┌──────────────────┼──────────────────┐
+             ▼                  ▼                  ▼
+      compact indexes      gematria lookup    report components
+             └──────────────────┼──────────────────┘
+                                ▼
+                   canonical report service
+                   ┌────────────┼────────────┐
+                   ▼            ▼            ▼
+                  CLI      synchronous API   SQLite job worker
+```
+
+Important modules:
+
+- `runtime_data.py` — read-only connections, schema/integrity checks, readiness.
+- `prepare_data.py` — safe download/build/validate/activate workflow.
+- `search/corpus_index.py` — shared compact letter and word-letter sequences.
+- `search/unified.py` — method fan-out and conservative defaults.
+- `scoring/calibrated.py` and `scoring/verdict.py` — evidence features and abstention.
+- `report_service.py` — canonical full-report composition.
+- `tools/api_server.py`, `jobs.py`, and `job_worker.py` — HTTP and asynchronous execution.
+
+## Tests and release checks
+
+```bash
+ruff check .
+pytest -q
+python -m pip wheel --no-deps . --wheel-dir dist
+ag-data-check --allow-legacy   # current checkout DB only; rebuilt DBs should omit this flag
+```
+
+Tests that require the full corpus skip when no prepared database is present. CI always runs the
+unit contracts, lint, and wheel/resource packaging checks; a release should additionally run the
+full-corpus tests, performance smoke test, and container readiness check.

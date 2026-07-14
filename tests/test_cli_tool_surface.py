@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import tomllib
-from pathlib import Path
 
 import pytest
 
@@ -22,6 +21,8 @@ EXPECTED_SCRIPTS = {
     "ag-corpus-stats",
     "ag-show-name",
     "ag-research-name",
+    "ag-prepare-data",
+    "ag-data-check",
 }
 
 

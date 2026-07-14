@@ -1,12 +1,28 @@
-"""Constants, paths, and Tanakh book registry."""
+"""Constants, runtime paths, and Tanakh book registry."""
 
 import os
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = Path(os.environ.get("AUTOGEMATRIA_DATA_DIR") or (PROJECT_ROOT / "data"))
+PACKAGE_ROOT = Path(__file__).resolve().parent
+_SOURCE_ROOT = PACKAGE_ROOT.parents[1]
+PROJECT_ROOT = _SOURCE_ROOT if (_SOURCE_ROOT / "pyproject.toml").is_file() else PACKAGE_ROOT
+
+
+def _default_data_dir() -> Path:
+    """Use checkout data when editable, otherwise follow the XDG data convention."""
+    checkout_data = _SOURCE_ROOT / "data"
+    if (_SOURCE_ROOT / "pyproject.toml").is_file():
+        return checkout_data
+    xdg_data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    return xdg_data_home / "autogematria"
+
+
+DATA_DIR = Path(os.environ.get("AUTOGEMATRIA_DATA_DIR") or _default_data_dir())
+VAR_DIR = Path(os.environ.get("AUTOGEMATRIA_VAR_DIR") or "/tmp/autogematria")
+RESOURCE_DIR = PACKAGE_ROOT / "resources"
 CORPUS_DIR = DATA_DIR / "corpus"
 DB_PATH = DATA_DIR / "autogematria.db"
+SCHEMA_VERSION = 1
 
 SEFARIA_BASE = "https://www.sefaria.org/api/texts"
 # Request consonantal Hebrew only, no English

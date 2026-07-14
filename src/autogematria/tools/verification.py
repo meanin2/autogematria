@@ -10,13 +10,14 @@ from hebrew.gematria import GematriaTypes
 
 from autogematria.normalize import FinalsPolicy, extract_letters
 from autogematria.search.base import SearchResult
+from autogematria.search.corpus_index import MIDDLE_LETTER_POLICY
 
 
 def build_verification_payload(conn: sqlite3.Connection, result: SearchResult) -> dict[str, Any]:
     """Build a deterministic verification payload for a single search finding."""
     if result.method == "ELS":
         return _verify_els(conn, result)
-    if result.method in ("ROSHEI_TEVOT", "SOFEI_TEVOT"):
+    if result.method in ("ROSHEI_TEVOT", "SOFEI_TEVOT", "EMTZAEI_TEVOT"):
         return _verify_acrostic(conn, result)
     if result.method == "SUBSTRING":
         mode = str(result.params.get("mode", "within_word"))
@@ -109,12 +110,21 @@ def _verify_acrostic(conn: sqlite3.Connection, result: SearchResult) -> dict[str
 
     words = []
     extracted = []
+    invalid_middle_word = False
     for row in rows:
         normalized_word = row["word_normalized"]
-        if not normalized_word:
-            continue
-        letter = normalized_word[0] if result.method == "ROSHEI_TEVOT" else normalized_word[-1]
-        extracted.append(letter)
+        letter = None
+        if result.method == "EMTZAEI_TEVOT":
+            if len(normalized_word) >= 3 and len(normalized_word) % 2 == 1:
+                letter = normalized_word[len(normalized_word) // 2]
+            else:
+                invalid_middle_word = True
+        elif result.method == "ROSHEI_TEVOT":
+            letter = normalized_word[0] if normalized_word else None
+        else:
+            letter = normalized_word[-1] if normalized_word else None
+        if letter is not None:
+            extracted.append(letter)
         words.append(
             {
                 "absolute_word_index": row["absolute_word_index"],
@@ -126,14 +136,26 @@ def _verify_acrostic(conn: sqlite3.Connection, result: SearchResult) -> dict[str
         )
 
     actual_seq = "".join(extracted)
+    expected_indices = list(range(lo, hi + 1))
+    actual_indices = [int(row["absolute_word_index"]) for row in rows]
+    consecutive = actual_indices == expected_indices
+    complete_span = len(rows) == len(query_norm)
     return {
-        "verified": actual_seq == query_norm,
+        "verified": (
+            actual_seq == query_norm
+            and consecutive
+            and complete_span
+            and not invalid_middle_word
+        ),
         "method": result.method,
         "expected_sequence": query_norm,
         "actual_sequence": actual_seq,
         "start_word_index": lo,
         "end_word_index": hi,
         "words": words,
+        "consecutive_words": consecutive,
+        "complete_span": complete_span,
+        "middle_policy": MIDDLE_LETTER_POLICY if result.method == "EMTZAEI_TEVOT" else None,
     }
 
 

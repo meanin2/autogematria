@@ -18,13 +18,15 @@ def build_agent_manifest(base_url: str) -> dict[str, Any]:
         "base_url": base_url,
         "instructions_url": f"{base_url}/for-agents",
         "text_instructions_url": f"{base_url}/agent.txt",
-        "healthcheck_url": f"{base_url}/health",
+        "healthcheck_url": f"{base_url}/ready",
+        "liveness_url": f"{base_url}/health",
         "preferred_flow": [
             "Fetch /for-agents or /agent.txt for operator guidance.",
             "POST /api/showcase-name with a Hebrew query for the presentable result.",
             "Use POST /api/search-name only when raw direct search results are needed.",
             "Treat direct verified substring results as strongest evidence.",
             "Do not treat weak ELS or gematria findings as proof without reading method metadata.",
+            "Treat Emtzaei Tevot as experimental; it is never eligible for the verdict.",
         ],
         "auth": {
             "optional_bearer_env": "AUTOGEMATRIA_API_TOKEN",
@@ -62,14 +64,15 @@ def build_agent_text(base_url: str) -> str:
     return (
         "AutoGematria Agent Instructions\n\n"
         f"Base URL: {base_url}\n"
-        "1. Check health with GET /health.\n"
+        "1. Check readiness with GET /ready.\n"
         "2. For the normal user-facing result, POST /api/showcase-name with JSON like "
         '{"query":"משה"}.\n'
         "3. Read showcase.headline and showcase.summary_line first.\n"
         "4. If you need raw search evidence, POST /api/search-name.\n"
         "5. Prefer verified direct textual hits over weaker methods such as high-skip ELS "
         "or indirect gematria matches.\n"
-        "6. If the service is protected, send Authorization: Bearer <token>.\n"
+        "6. Treat Emtzaei Tevot findings as experimental and never as verdict evidence.\n"
+        "7. If the service is protected, send Authorization: Bearer <token>.\n"
     )
 
 
@@ -198,7 +201,7 @@ def build_agent_html(base_url: str) -> str:
         you specifically need lower-level search results.
       </p>
       <div class="links">
-        <a href="{escape(base_url)}/health">Health</a>
+        <a href="{escape(base_url)}/ready">Readiness</a>
         <a href="{escape(base_url)}/agent.txt">Plain text instructions</a>
         <a href="{escape(base_url)}/.well-known/autogematria-agent.json">Machine-readable manifest</a>
       </div>
@@ -208,11 +211,12 @@ def build_agent_html(base_url: str) -> str:
       <article class="card">
         <h2>Recommended Flow</h2>
         <ol>
-          <li>Call <code>GET /health</code>.</li>
+          <li>Call <code>GET /ready</code>.</li>
           <li>Call <code>POST /api/showcase-name</code> with a Hebrew <code>query</code>.</li>
           <li>Read <code>showcase.summary_line</code> and <code>showcase.headline</code> first.</li>
           <li>Only use <code>/api/search-name</code> when you need lower-level direct search output.</li>
           <li>Prefer direct verified textual hits over weaker ELS or indirect gematria findings.</li>
+          <li>Treat Emtzaei Tevot as experimental; it is excluded from verdicts.</li>
         </ol>
       </article>
       <article class="card">

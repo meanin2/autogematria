@@ -7,7 +7,7 @@ exponentially more significant than two independent findings.
 
 from __future__ import annotations
 
-from autogematria.config import DB_PATH, normalize_corpus_scope
+from autogematria.config import normalize_corpus_scope
 from autogematria.normalize import extract_letters, FinalsPolicy
 from autogematria.search.base import Location, SearchResult
 from autogematria.search.els import ELSSearch

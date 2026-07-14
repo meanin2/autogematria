@@ -15,6 +15,7 @@ from hebrew.gematria import GematriaTypes
 
 from autogematria.config import DB_PATH
 from autogematria.normalize import FinalsPolicy, normalize_hebrew
+from autogematria.runtime_data import connect_corpus
 
 
 METHODS_FOR_REPORT: list[tuple[str, str]] = [
@@ -237,8 +238,7 @@ def find_torah_word_matches(
     has first-class Torah-word findings for the user's *full* name, not
     just for its individual components.
     """
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
+    conn = connect_corpus(db_path)
     results: dict[str, list[dict[str, Any]]] = {}
 
     try:

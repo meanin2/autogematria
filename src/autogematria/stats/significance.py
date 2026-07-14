@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-import numpy as np
-from scipy.stats import false_discovery_control
+from statistics import fmean, pstdev
 
 from autogematria.stats.null_models import letter_frequency_shuffle, markov_chain_null
 
@@ -36,9 +34,20 @@ def benjamini_hochberg(p_values: list[float]) -> list[float]:
     """Apply Benjamini-Hochberg FDR correction to a list of p-values."""
     if not p_values:
         return []
-    arr = np.array(p_values)
-    adjusted = false_discovery_control(arr, method="bh")
-    return adjusted.tolist()
+    for value in p_values:
+        if value < 0.0 or value > 1.0:
+            raise ValueError("p-values must be between 0 and 1")
+
+    count = len(p_values)
+    ordered = sorted(enumerate(p_values), key=lambda item: item[1])
+    adjusted = [1.0] * count
+    running_min = 1.0
+    for rank_index in range(count - 1, -1, -1):
+        original_index, value = ordered[rank_index]
+        rank = rank_index + 1
+        running_min = min(running_min, value * count / rank)
+        adjusted[original_index] = min(1.0, running_min)
+    return adjusted
 
 
 def compute_significance(
@@ -69,14 +78,13 @@ def compute_significance(
             null_text = letter_frequency_shuffle(letter_string, seed=i)
         null_counts.append(search_func(null_text, query))
 
-    null_arr = np.array(null_counts, dtype=float)
     p = empirical_p_value(observed, null_counts)
 
     return SignificanceResult(
         method=null_model,
         query=query,
         observed_count=observed,
-        null_mean=float(null_arr.mean()),
-        null_std=float(null_arr.std()),
+        null_mean=fmean(null_counts) if null_counts else 0.0,
+        null_std=pstdev(null_counts) if null_counts else 0.0,
         p_value=p,
     )

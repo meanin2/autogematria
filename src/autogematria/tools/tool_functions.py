@@ -7,7 +7,6 @@ AutoGematria system. Each function returns a structured dict.
 from __future__ import annotations
 
 from copy import deepcopy
-import sqlite3
 from typing import Any
 
 from hebrew import Hebrew
@@ -18,6 +17,7 @@ from autogematria.gematria_connections import gematria_connections as build_gema
 from autogematria.normalize import normalize_hebrew, extract_letters, FinalsPolicy
 from autogematria.research import ResearchConfig, run_name_research as run_bounded_name_research
 from autogematria.research.presentation import build_showcase
+from autogematria.runtime_data import connect_corpus
 from autogematria.scoring.calibrated import CandidateEvidence, score_candidates
 from autogematria.scoring.verdict import aggregate_full_name_verdict, build_token_support
 from autogematria.search.gematria import GematriaSearch
@@ -28,9 +28,7 @@ from autogematria.tools.verification import build_verification_payload
 
 
 def _conn():
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+    return connect_corpus(DB_PATH)
 
 
 def _resolve_gematria_method(method: str) -> tuple[GematriaTypes, str]:
@@ -51,7 +49,14 @@ def _diversify_results(results, max_results: int):
     if not results:
         return []
 
-    method_order = ["SUBSTRING", "ELS_PROXIMITY", "ROSHEI_TEVOT", "SOFEI_TEVOT", "ELS"]
+    method_order = [
+        "SUBSTRING",
+        "ELS_PROXIMITY",
+        "ROSHEI_TEVOT",
+        "SOFEI_TEVOT",
+        "EMTZAEI_TEVOT",
+        "ELS",
+    ]
     buckets: dict[str, list] = {m: [] for m in method_order}
     extras: list = []
     for result in results:
@@ -192,11 +197,13 @@ def _run_search_pipeline(
     corpus_scope: str = "torah",
 ) -> dict[str, Any]:
     scope = normalize_corpus_scope(corpus_scope)
+    method_set = {str(method).strip().lower() for method in methods or []}
     cfg = UnifiedSearchConfig(
-        enable_substring=methods is None or "substring" in methods,
-        enable_roshei=methods is None or "roshei_tevot" in methods,
-        enable_sofei=methods is None or "sofei_tevot" in methods,
-        enable_els=methods is None or "els" in methods,
+        enable_substring=methods is None or "substring" in method_set,
+        enable_roshei=methods is None or "roshei_tevot" in method_set,
+        enable_sofei=methods is None or "sofei_tevot" in method_set,
+        enable_emtzaei=methods is not None and "emtzaei_tevot" in method_set,
+        enable_els=methods is None or "els" in method_set,
         els_max_skip=els_max_skip,
         els_direction="both",
         els_use_fast=True,
@@ -246,8 +253,9 @@ def find_name_in_torah(
 
     Args:
         name: Hebrew name to search for (e.g. "משה", "אברהם")
-        methods: Subset of ["substring", "roshei_tevot", "sofei_tevot", "els"].
-                 None = all methods.
+        methods: Subset of ["substring", "roshei_tevot", "sofei_tevot",
+                 "emtzaei_tevot", "els"]. None = all conservative methods;
+                 experimental Emtzaei Tevot is explicit-only.
         book: Restrict search to a specific book
         max_results: Maximum total results to return
         els_max_skip: Maximum ELS skip distance to search

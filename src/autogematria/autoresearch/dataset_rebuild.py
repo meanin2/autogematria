@@ -7,11 +7,11 @@ import json
 from pathlib import Path
 
 from autogematria.autoresearch.hard_negatives import generate_hard_negative_entries
-from autogematria.config import DATA_DIR, TORAH_BOOKS
+from autogematria.config import RESOURCE_DIR, TORAH_BOOKS
 
 
-LEGACY_PATH = DATA_DIR / "ground_truth" / "known_findings.jsonl"
-V2_PATH = DATA_DIR / "ground_truth" / "known_findings_v2.jsonl"
+LEGACY_PATH = RESOURCE_DIR / "ground_truth" / "known_findings.jsonl"
+V2_PATH = RESOURCE_DIR / "ground_truth" / "known_findings_v2.jsonl"
 
 
 def _legacy_is_negative(row: dict) -> bool:

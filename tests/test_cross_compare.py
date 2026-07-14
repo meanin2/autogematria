@@ -1,6 +1,5 @@
 """Tests for cross-comparison engine."""
 
-import pytest
 
 from autogematria.research.cross_compare import (
     build_cross_comparison_report,

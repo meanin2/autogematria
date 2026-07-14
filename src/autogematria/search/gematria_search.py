@@ -22,6 +22,7 @@ from hebrew.gematria import GematriaTypes
 
 from autogematria.config import DB_PATH, normalize_corpus_scope
 from autogematria.normalize import FinalsPolicy, normalize_hebrew, validate_normalized
+from autogematria.runtime_data import connect_corpus
 from autogematria.search.base import Location, SearchResult
 
 
@@ -113,9 +114,7 @@ def _resolve_gematria_method(method: str) -> tuple[GematriaTypes, str]:
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+    return connect_corpus(DB_PATH)
 
 
 def _location_from_row(row: GematriaWordRow) -> Location:
@@ -273,8 +272,7 @@ def _load_method_rows(
     corpus_scope: str,
     book: str | None,
 ) -> tuple[GematriaWordRow, ...]:
-    conn = sqlite3.connect(db_path_str)
-    conn.row_factory = sqlite3.Row
+    conn = connect_corpus(db_path_str)
     try:
         scope = normalize_corpus_scope(corpus_scope)
         where_parts = ["gm.method_name = ?"]
@@ -317,7 +315,7 @@ def _load_method_rows(
 
 def available_gematria_methods(db_path=DB_PATH) -> list[str]:
     """Return registered gematria methods in deterministic order."""
-    conn = sqlite3.connect(str(db_path))
+    conn = connect_corpus(db_path, row_factory=False)
     try:
         rows = conn.execute(
             "SELECT method_name FROM gematria_methods ORDER BY method_id"

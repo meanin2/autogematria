@@ -5,6 +5,7 @@ from __future__ import annotations
 from autogematria.config import TORAH_BOOKS, normalize_corpus_scope
 from autogematria.normalize import extract_letters, FinalsPolicy
 from autogematria.search.base import SearchMethod, SearchResult
+from autogematria.search.corpus_index import load_letter_index
 
 # Default skip range bounds
 DEFAULT_MIN_SKIP = 1
@@ -26,38 +27,13 @@ class ELSSearch(SearchMethod):
         self._exact_word_cache: dict[tuple[str, str, str | None], bool] = {}
 
     def _load_letters(self):
-        """Load the entire letter array as a single string. ~1.2MB in memory."""
+        """Attach the process-shared compact letter and offset index."""
         if self._letter_string is not None:
             return
-        conn = self._connect()
-        rows = conn.execute(
-            "SELECT letter_normalized FROM letters ORDER BY absolute_letter_index"
-        ).fetchall()
-        self._letter_string = "".join(r["letter_normalized"] for r in rows)
-
-        # Build book offset map for book-filtered searches
-        book_ranges = conn.execute(
-            "SELECT b.api_name, MIN(l.absolute_letter_index), MAX(l.absolute_letter_index) "
-            "FROM letters l JOIN books b ON l.book_id = b.book_id "
-            "GROUP BY b.book_id ORDER BY MIN(l.absolute_letter_index)"
-        ).fetchall()
-        self._book_offsets = {
-            r["api_name"]: (r[1], r[2]) for r in book_ranges
-        }
-
-        scope_ranges = conn.execute(
-            "SELECT b.category, MIN(l.absolute_letter_index), MAX(l.absolute_letter_index) "
-            "FROM letters l JOIN books b ON l.book_id = b.book_id "
-            "GROUP BY b.category"
-        ).fetchall()
-        scope_offsets: dict[str, tuple[int, int]] = {}
-        for row in scope_ranges:
-            category = str(row["category"]).lower()
-            if category == "torah":
-                scope_offsets["torah"] = (int(row[1]), int(row[2]))
-        scope_offsets["tanakh"] = (0, len(self._letter_string) - 1)
-        self._scope_offsets = scope_offsets
-        conn.close()
+        index = load_letter_index(self.db_path)
+        self._letter_string = index.text
+        self._book_offsets = index.book_offsets
+        self._scope_offsets = index.scope_offsets
 
     @staticmethod
     def _validate_search_args(min_skip: int, max_skip: int, direction: str) -> None:

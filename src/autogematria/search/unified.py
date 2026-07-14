@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from autogematria.config import DB_PATH, normalize_corpus_scope
 from autogematria.search.base import SearchResult
 from autogematria.search.els import ELSSearch
-from autogematria.search.roshei_tevot import RosheiTevotSearch, SofeiTevotSearch
+from autogematria.search.roshei_tevot import (
+    EmtzaeiTevotSearch,
+    RosheiTevotSearch,
+    SofeiTevotSearch,
+)
 from autogematria.search.substring import SubstringSearch
 
 
@@ -17,6 +21,7 @@ class UnifiedSearchConfig:
     enable_substring: bool = True
     enable_roshei: bool = True
     enable_sofei: bool = True
+    enable_emtzaei: bool = False
     enable_els: bool = True
     els_min_skip: int = 1
     els_max_skip: int = 1000
@@ -61,6 +66,10 @@ class UnifiedSearch:
             st = SofeiTevotSearch(self.db_path)
             results.extend(st.search(query, max_results=max_per, book=cfg.book, corpus_scope=scope))
 
+        if cfg.enable_emtzaei:
+            et = EmtzaeiTevotSearch(self.db_path)
+            results.extend(et.search(query, max_results=max_per, book=cfg.book, corpus_scope=scope))
+
         if cfg.enable_els:
             els = ELSSearch(self.db_path)
             if cfg.els_use_fast:
@@ -78,14 +87,21 @@ class UnifiedSearch:
                     corpus_scope=scope,
                 ))
 
-        # Sort: substring first (score 0), then roshei/sofei, then ELS by skip distance
+        # Keep experimental middle-letter results after established acrostic methods.
         results.sort(key=_sort_key)
         return results
 
 
 def _sort_key(r: SearchResult) -> tuple[int, float]:
     """Sort order: method priority, then raw_score."""
-    priority = {"SUBSTRING": 0, "ELS_PROXIMITY": 1, "ROSHEI_TEVOT": 2, "SOFEI_TEVOT": 3, "ELS": 4}
+    priority = {
+        "SUBSTRING": 0,
+        "ELS_PROXIMITY": 1,
+        "ROSHEI_TEVOT": 2,
+        "SOFEI_TEVOT": 3,
+        "EMTZAEI_TEVOT": 4,
+        "ELS": 5,
+    }
     return (priority.get(r.method, 99), r.raw_score)
 
 

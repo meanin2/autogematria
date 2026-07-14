@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from autogematria.tools.name_variants import contains_hebrew, generate_hebrew_variants
+from autogematria.tools.name_variants import contains_hebrew
 
 
 _BEN_PATTERNS = re.compile(

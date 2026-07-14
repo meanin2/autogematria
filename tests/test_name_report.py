@@ -46,6 +46,17 @@ class TestNameReport:
         assert parsed["father_name"] == "אברהם"
         assert parsed["mother_name"] == "רבקה"
 
+    def test_text_search_matches_present(self):
+        report = build_name_report("moshe gindi")
+        tsm = report["text_search_matches"]
+        assert "by_component" in tsm
+        assert "full_name" in tsm
+        assert "totals" in tsm
+        for key in ("roshei_tevot", "sofei_tevot", "emtzaei_tevot"):
+            assert key in tsm["full_name"]
+            assert key in tsm["totals"]
+            assert isinstance(tsm["full_name"][key], list)
+
     def test_realistic_names(self):
         names = [
             "Yehuda ben Shimon",

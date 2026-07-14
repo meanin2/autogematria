@@ -27,6 +27,27 @@ def test_unified_avraham(searcher):
     assert any(r.method == "SUBSTRING" for r in results)
 
 
+def test_unified_default_excludes_experimental_emtzaei(searcher):
+    results = searcher.search("אב")
+    assert all(result.method != "EMTZAEI_TEVOT" for result in results)
+
+
+def test_unified_can_opt_in_to_experimental_emtzaei():
+    if not DB_PATH.exists():
+        pytest.skip("Database not yet created")
+    cfg = UnifiedSearchConfig(
+        enable_substring=False,
+        enable_roshei=False,
+        enable_sofei=False,
+        enable_emtzaei=True,
+        enable_els=False,
+        max_results_per_method=5,
+    )
+    results = UnifiedSearch(cfg).search("אב")
+    assert results
+    assert {result.method for result in results} == {"EMTZAEI_TEVOT"}
+
+
 def test_unified_sorted(searcher):
     """Results should be sorted: substring first, then roshei/sofei, then ELS."""
     results = searcher.search("משה")
@@ -37,7 +58,12 @@ def test_unified_sorted(searcher):
             if m == "ELS":
                 # All substring/roshei/sofei should come before
                 for j in range(i):
-                    assert methods_order[j] in ("SUBSTRING", "ROSHEI_TEVOT", "SOFEI_TEVOT")
+                    assert methods_order[j] in (
+                        "SUBSTRING",
+                        "ROSHEI_TEVOT",
+                        "SOFEI_TEVOT",
+                        "EMTZAEI_TEVOT",
+                    )
                 break
 
 

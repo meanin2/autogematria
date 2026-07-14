@@ -13,9 +13,10 @@ import logging
 import sqlite3
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from autogematria.config import DB_PATH
+from autogematria.runtime_data import connect_corpus
+
+logger = logging.getLogger(__name__)
 
 REPORT_METHODS = [
     "MISPAR_HECHRACHI",
@@ -37,9 +38,7 @@ REPORT_METHOD_DISPLAY = {
 
 
 def _conn(db_path=DB_PATH) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    return conn
+    return connect_corpus(db_path)
 
 
 def reverse_lookup(

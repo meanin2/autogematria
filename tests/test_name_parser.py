@@ -1,6 +1,6 @@
 """Tests for the structured name parser."""
 
-from autogematria.tools.name_parser import ParsedName, parse_name
+from autogematria.tools.name_parser import parse_name
 
 
 class TestBasicParsing:

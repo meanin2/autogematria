@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from array import array
+
 import pytest
 
 from autogematria.config import DB_PATH
@@ -61,8 +63,20 @@ def test_gematria_search_finds_exact_sequence_and_sum_patterns(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "autogematria.research.gematria_search._load_method_rows",
-        lambda *_args, **_kwargs: rows,
+        "autogematria.research.gematria_search._load_exact_rows",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        "autogematria.research.gematria_search._load_method_values",
+        lambda *_args, **_kwargs: array("q", [10, 20, 30]),
+    )
+    monkeypatch.setattr(
+        "autogematria.research.gematria_search._search_bounds",
+        lambda *_args, **_kwargs: (0, 3),
+    )
+    monkeypatch.setattr(
+        "autogematria.research.gematria_search._load_word_span",
+        lambda _db, _method, start, end: list(rows[start : end + 1]),
     )
     monkeypatch.setattr(
         "autogematria.research.gematria_search._gematria_value",

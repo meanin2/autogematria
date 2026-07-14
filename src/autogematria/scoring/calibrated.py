@@ -5,12 +5,13 @@ from __future__ import annotations
 import math
 import sqlite3
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any
 
 from autogematria.config import DB_PATH, normalize_corpus_scope
 from autogematria.normalize import FinalsPolicy, extract_letters
+from autogematria.runtime_data import connect_corpus
 from autogematria.search.base import SearchResult
+from autogematria.search.corpus_index import load_letter_index
 from autogematria.stats.null_models import letter_frequency_shuffle, markov_chain_null
 from autogematria.stats.significance import empirical_p_value
 
@@ -56,24 +57,9 @@ def _label(score: float, verified: bool) -> str:
     return "very_low"
 
 
-@lru_cache(maxsize=8)
 def _scope_letter_string(db_path_str: str, corpus_scope: str) -> str:
-    conn = sqlite3.connect(db_path_str)
-    conn.row_factory = sqlite3.Row
     scope = normalize_corpus_scope(corpus_scope)
-    if scope == "torah":
-        rows = conn.execute(
-            "SELECT l.letter_normalized FROM letters l "
-            "JOIN books b ON l.book_id = b.book_id "
-            "WHERE b.category = 'Torah' "
-            "ORDER BY l.absolute_letter_index"
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT letter_normalized FROM letters ORDER BY absolute_letter_index"
-        ).fetchall()
-    conn.close()
-    return "".join(r["letter_normalized"] for r in rows)
+    return load_letter_index(db_path_str).text_for_scope(scope)
 
 
 def _count_els_hits(text: str, pattern: str, skip: int) -> int:
@@ -139,7 +125,7 @@ def _match_type(result: SearchResult, is_multi_word_query: bool) -> str:
         if mode == "cross_word":
             return "cross_word"
         return "partial_word"
-    if result.method in ("ROSHEI_TEVOT", "SOFEI_TEVOT"):
+    if result.method in ("ROSHEI_TEVOT", "SOFEI_TEVOT", "EMTZAEI_TEVOT"):
         return "acrostic"
     if result.method == "ELS":
         return "els"
@@ -239,12 +225,11 @@ def score_candidates(
         if len(els_null_candidates) >= 5:
             break
 
-    scope_text = _scope_letter_string(str(db_path), scope)
+    scope_text = _scope_letter_string(str(db_path), scope) if els_candidates else ""
     scope_letters = len(scope_text)
     verse_cache: dict[tuple[str, int, int], int] = {}
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
+    conn = connect_corpus(db_path)
     try:
         scored: list[ScoredCandidate] = []
         for idx, candidate in enumerate(candidates):
@@ -338,14 +323,17 @@ def score_candidates(
                     if is_multi_word_query and match_type != "exact_phrase":
                         score -= 0.06
 
-                elif result.method in ("ROSHEI_TEVOT", "SOFEI_TEVOT"):
+                elif result.method in ("ROSHEI_TEVOT", "SOFEI_TEVOT", "EMTZAEI_TEVOT"):
                     word_span = int(result.params.get("word_span") or max(query_len, 2))
                     score = 0.42 + min(0.16, max(0, query_len - 2) * 0.03)
                     score += min(0.08, max(0, word_span - 3) * 0.02)
                     score -= min(0.12, max(0, verses_crossed - 1) * 0.03)
                     if is_multi_word_query:
                         score -= 0.04
-                    rationale = f"acrostic over {word_span} words"
+                    if result.method == "EMTZAEI_TEVOT":
+                        rationale = f"experimental middle-letter acrostic over {word_span} words"
+                    else:
+                        rationale = f"acrostic over {word_span} words"
 
                 elif result.method == "ELS":
                     skip_factor = 1.0 - min(skip_size, 400) / 400
@@ -424,7 +412,8 @@ def score_candidates(
                     rationale = "unsupported method type"
 
             score = round(_clamp(score), 4)
-            label = _label(score, verified)
+            experimental = result.method == "EMTZAEI_TEVOT"
+            label = "experimental" if experimental and verified else _label(score, verified)
             features = {
                 "method": result.method,
                 "match_type": match_type,
@@ -446,6 +435,8 @@ def score_candidates(
                 "surname_only_high_skip_els": False,
                 "all_tokens_independently_supported": False,
                 "corpus_scope": scope,
+                "experimental": experimental,
+                "eligible_for_verdict": not experimental,
             }
 
             scored.append(
@@ -461,7 +452,14 @@ def score_candidates(
     finally:
         conn.close()
 
-    method_priority = {"SUBSTRING": 0, "ELS_PROXIMITY": 1, "ROSHEI_TEVOT": 2, "SOFEI_TEVOT": 3, "ELS": 4}
+    method_priority = {
+        "SUBSTRING": 0,
+        "ELS_PROXIMITY": 1,
+        "ROSHEI_TEVOT": 2,
+        "SOFEI_TEVOT": 3,
+        "EMTZAEI_TEVOT": 4,
+        "ELS": 5,
+    }
     scored.sort(
         key=lambda s: (
             -s.score,

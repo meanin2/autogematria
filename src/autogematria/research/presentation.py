@@ -32,7 +32,7 @@ def _is_namesake_only_hit(row: dict[str, Any], *, multi_token_query: bool) -> bo
     family = str(row.get("family") or "")
     # Text-layer hits on a bare biblical name are what we suppress --
     # they are just "the Torah talks about the biblical figure".
-    if method in {"SUBSTRING", "ROSHEI_TEVOT", "SOFEI_TEVOT", "ELS"}:
+    if method in {"SUBSTRING", "ROSHEI_TEVOT", "SOFEI_TEVOT", "EMTZAEI_TEVOT", "ELS"}:
         return True
     if family == "gematria":
         # A Torah word whose gematria equals the biblical name is still
@@ -83,6 +83,8 @@ def _presentation_score(row: dict[str, Any], *, has_direct_exact: bool) -> float
             bonus += 0.6
     elif method in {"ROSHEI_TEVOT", "SOFEI_TEVOT"}:
         bonus += 0.7
+    elif method == "EMTZAEI_TEVOT":
+        bonus -= 0.2
     elif method == "ELS":
         skip = abs(int((row.get("params") or {}).get("skip") or _feature(row, "skip_size", 9999) or 9999))
         if skip <= 20:
@@ -112,6 +114,8 @@ def _tier(row: dict[str, Any], *, has_direct_exact: bool) -> str | None:
         return "supporting"
     if method in {"ROSHEI_TEVOT", "SOFEI_TEVOT"}:
         return "supporting" if not has_direct_exact else "interesting"
+    if method == "EMTZAEI_TEVOT":
+        return "interesting"
     if method == "SUBSTRING" and match_type == "cross_word":
         return "interesting"
     if family == "gematria":

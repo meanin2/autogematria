@@ -6,10 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
-from autogematria.research.html_export import prepare_showcase_payload
 from autogematria.research.html_report import render_full_report_html
-from autogematria.research.name_report import build_name_report
-from autogematria.tools.tool_functions import showcase_name
+from autogematria.report_service import build_full_report_payload
 
 
 def generate_full_report(
@@ -25,11 +23,9 @@ def generate_full_report(
       - Cross-comparison gematria table
       - Torah text/ELS/acrostic findings
     """
-    report = build_name_report(query)
-
-    showcase_raw = showcase_name(report["full_hebrew_name"])
-    prepared = prepare_showcase_payload(showcase_raw)
-    showcase = prepared.get("showcase", {})
+    payload = build_full_report_payload(query)
+    report = payload["report"]
+    showcase = payload["showcase"]
 
     html = render_full_report_html(report, showcase=showcase)
 

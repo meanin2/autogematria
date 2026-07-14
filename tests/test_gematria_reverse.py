@@ -1,6 +1,5 @@
 """Tests for the gematria reverse lookup module."""
 
-import pytest
 
 from autogematria.search.gematria_reverse import (
     REPORT_METHODS,

@@ -6,7 +6,7 @@ import pytest
 from hebrew import Hebrew
 from hebrew.gematria import GematriaTypes
 
-from autogematria.config import DB_PATH, PROJECT_ROOT
+from autogematria.config import DB_PATH, RESOURCE_DIR
 from autogematria.gematria_connections import load_connections_library
 from autogematria.tools.tool_functions import gematria_connections, gematria_lookup
 
@@ -62,7 +62,7 @@ class TestConnectionsDataIntegrity:
 
     @pytest.fixture()
     def connection_records(self):
-        path = PROJECT_ROOT / "data" / "gematria" / "connections.json"
+        path = RESOURCE_DIR / "gematria" / "connections.json"
         with open(path, encoding="utf-8") as f:
             return json.load(f)["records"]
 

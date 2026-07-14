@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from autogematria.config import DB_PATH
+from autogematria.runtime_data import connect_corpus
 
 
 @dataclass(frozen=True)
@@ -50,9 +51,7 @@ class SearchMethod(ABC):
         """Run this search method and return results."""
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        return conn
+        return connect_corpus(self.db_path)
 
     def _location_for_letter(self, conn: sqlite3.Connection, abs_idx: int) -> Location:
         """Resolve an absolute letter index to a full Location."""

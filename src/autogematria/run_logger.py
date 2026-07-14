@@ -11,17 +11,16 @@ import json
 import threading
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
-from autogematria.config import DATA_DIR
+from autogematria.config import VAR_DIR
 
 _write_lock = threading.Lock()
 _cache_lock = threading.Lock()
 _records_cache: list[dict[str, Any]] = []
 _records_cache_mtime: float = -1.0
 
-LOG_PATH = DATA_DIR / "run_log.jsonl"
+LOG_PATH = VAR_DIR / "run_log.jsonl"
 
 
 def _all_records() -> list[dict[str, Any]]:
